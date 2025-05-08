@@ -199,7 +199,13 @@ int main(){
         // Check if the read values are ok.
         for( i=0; i < chunks_n*chunk_w*4; i++){
             // If any value is not wahat you expected, the two rightmost LEDs of the board will be light up. 
-            if(buffer_read_from[i] != buffer_read_to[i]) return EXIT_FAILURE;
+            if(buffer_read_from[i] != buffer_read_to[i]){
+                PRINTF("Error at index %d: %d != %d\n\r", i, buffer_read_from[i], buffer_read_to[i]);
+                gpio_write(GPIO_LD5_R, false);
+                gpio_write(GPIO_LD5_B, true);
+                gpio_write(GPIO_LD5_G, false);
+                return EXIT_FAILURE;
+            } 
         }
 
         // Celebrate in a fairly lame way
@@ -210,7 +216,7 @@ int main(){
         // Lament it
         PRINTF("Oh snap, slave again it is...\n\r");
         // Turn the red LED in disapproval 
-        gpio_write(GPIO_LD5_B, true);
+        gpio_write(GPIO_LD5_R, true);
         // Go to sleep, nothing else to be done by the CPU
         wait_for_interrupt();
     }
