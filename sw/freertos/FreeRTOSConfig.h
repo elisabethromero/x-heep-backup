@@ -76,9 +76,12 @@
 #define configMINIMAL_STACK_SIZE ((unsigned short)80)
 /* we want to put the heap into special section */
 #define configAPPLICATION_ALLOCATED_HEAP 1
-#define configTOTAL_HEAP_SIZE		 ((size_t)(6 * 1024))
+#define configTOTAL_HEAP_SIZE		 ((size_t)(120 * 1024))
 #define configMAX_TASK_NAME_LEN		 (12)
-#define configUSE_TRACE_FACILITY	 0 /* TODO: 0 */
+#define configUSE_TRACE_FACILITY	 1 /* TODO: 0 */ //[EMRL]
+#define configUSE_STATS_FORMATTING_FUNCTIONS 1	//[EMRL]
+#define INCLUDE_vTaskList 1						//[EMRL]
+#define INCLUDE_uxTaskGetStackHighWaterMark 1   //[EMRL]
 #define configUSE_16_BIT_TICKS		 0
 #define configIDLE_SHOULD_YIELD		 0
 #define configUSE_MUTEXES		 1
@@ -91,6 +94,7 @@
 #define configGENERATE_RUN_TIME_STATS	 0
 #define configUSE_QUEUE_SETS                        1
 #define configTASK_NOTIFICATION_ARRAY_ENTRIES       3
+#define configSUPPORT_STATIC_ALLOCATION 1
 
 /* newlib reentrancy */
 //#define configUSE_NEWLIB_REENTRANT 1
