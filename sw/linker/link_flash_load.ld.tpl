@@ -179,7 +179,8 @@ SECTIONS {
     .data_flash_only : ALIGN(256)
     {
         . = ALIGN(4);
-        *(.xheep_data_flash_only)
+        *(.xheep_data_flash_only)       /* Para uint8, etc */
+        *(.xheep_data_doubles_flash)    /* Para doubles */
         . = ALIGN(4);
     } >FLASH_left
 
