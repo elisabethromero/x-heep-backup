@@ -1,14 +1,14 @@
 #include <math.h>
 #include <string.h>
-float sigmoid(float x) {
+double sigmoid(double x) {
     if (x < 0.0) {
-        float z = exp(x);
+        double z = exp(x);
         return z / (1.0f + z);
     }
     return 1.0f / (1.0f + exp(-x));
 }
-void score(float * input, float * output) {
-    float var0;
+void score(double * input, double * output) {
+    double var0;
     if (input[2] > 11477.117499290029f) {
         if (input[2] > 14792.678892086511f) {
             var0 = 1.183205125569781f;
@@ -130,7 +130,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var1;
+    double var1;
     if (input[2] > 11477.117499290029f) {
         if (input[2] > 14792.678892086511f) {
             var1 = 0.12616551478986793f;
@@ -252,7 +252,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var2;
+    double var2;
     if (input[2] > 11477.117499290029f) {
         if (input[2] > 14792.678892086511f) {
             var2 = 0.12221227551972567f;
@@ -374,7 +374,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var3;
+    double var3;
     if (input[2] > 11477.117499290029f) {
         if (input[2] > 14792.678892086511f) {
             var3 = 0.11874540455863365f;
@@ -496,7 +496,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var4;
+    double var4;
     if (input[2] > 11477.117499290029f) {
         if (input[2] > 15976.25103986123f) {
             var4 = 0.11761096079479394f;
@@ -618,7 +618,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var5;
+    double var5;
     if (input[2] > 11477.117499290029f) {
         if (input[2] > 15976.25103986123f) {
             var5 = 0.11496257465022418f;
@@ -740,7 +740,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var6;
+    double var6;
     if (input[2] > 11477.117499290029f) {
         if (input[0] > 25494.90693529323f) {
             var6 = 0.11705165732252032f;
@@ -862,7 +862,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var7;
+    double var7;
     if (input[2] > 11477.117499290029f) {
         if (input[0] > 25494.90693529323f) {
             var7 = 0.11516937513568887f;
@@ -984,7 +984,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var8;
+    double var8;
     if (input[2] > 11477.117499290029f) {
         if (input[0] > 25494.90693529323f) {
             var8 = 0.11352020316883067f;
@@ -1106,7 +1106,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var9;
+    double var9;
     if (input[2] > 11477.117499290029f) {
         if (input[0] > 25494.90693529323f) {
             var9 = 0.11207012568276722f;
@@ -1228,7 +1228,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var10;
+    double var10;
     if (input[2] > 11477.117499290029f) {
         if (input[0] > 25494.90693529323f) {
             var10 = 0.11079115908311853f;
@@ -1350,7 +1350,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var11;
+    double var11;
     if (input[2] > 11477.117499290029f) {
         if (input[0] > 25494.90693529323f) {
             var11 = 0.10965999467129668f;
@@ -1472,7 +1472,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var12;
+    double var12;
     if (input[2] > 13627.216849130005f) {
         var12 = 0.09377687345992339f;
     } else {
@@ -1594,7 +1594,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var13;
+    double var13;
     if (input[2] > 14792.678892086511f) {
         var13 = 0.09719295286103975f;
     } else {
@@ -1716,7 +1716,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var14;
+    double var14;
     if (input[2] > 14792.678892086511f) {
         var14 = 0.09542669769172739f;
     } else {
@@ -1838,7 +1838,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var15;
+    double var15;
     if (input[2] > 14792.678892086511f) {
         var15 = 0.09366416613257277f;
     } else {
@@ -1960,7 +1960,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var16;
+    double var16;
     if (input[0] > 20239.808056429334f) {
         if (input[0] > 26039.382048862153f) {
             var16 = 0.10657464715984839f;
@@ -2082,7 +2082,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var17;
+    double var17;
     if (input[2] > 14792.678892086511f) {
         var17 = 0.09037626760613178f;
     } else {
@@ -2204,7 +2204,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var18;
+    double var18;
     if (input[0] > 26039.382048862153f) {
         var18 = 0.10551251862424119f;
     } else {
@@ -2326,7 +2326,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var19;
+    double var19;
     if (input[0] > 26039.382048862153f) {
         var19 = 0.10497643803670598f;
     } else {
@@ -2448,7 +2448,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var20;
+    double var20;
     if (input[0] > 26039.382048862153f) {
         var20 = 0.10449414192030136f;
     } else {
@@ -2570,7 +2570,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var21;
+    double var21;
     if (input[0] > 26039.382048862153f) {
         var21 = 0.10405984795109224f;
     } else {
@@ -2692,7 +2692,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var22;
+    double var22;
     if (input[0] > 26039.382048862153f) {
         var22 = 0.10366848904395587f;
     } else {
@@ -2814,7 +2814,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var23;
+    double var23;
     if (input[0] > 26039.382048862153f) {
         var23 = 0.10331559870541665f;
     } else {
@@ -2936,7 +2936,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var24;
+    double var24;
     if (input[0] > 26039.382048862153f) {
         var24 = 0.10299721754228282f;
     } else {
@@ -3058,7 +3058,7 @@ void score(float * input, float * output) {
             }
         }
     }
-    float var25;
+    double var25;
     var25 = sigmoid(var0 + var1 + var2 + var3 + var4 + var5 + var6 + var7 + var8 + var9 + var10 + var11 + var12 + var13 + var14 + var15 + var16 + var17 + var18 + var19 + var20 + var21 + var22 + var23 + var24);
-    memcpy(output, (float[]){1.0f - var25, var25}, 2 * sizeof(float));
+    memcpy(output, (double[]){1.0f - var25, var25}, 2 * sizeof(double));
 }

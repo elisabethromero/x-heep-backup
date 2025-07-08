@@ -45,7 +45,8 @@ esp_err_t ret;
 #else
 
 spi_t spi_pynq;
-
+//[EMRL] Chip select
+uint32_t csid = 0;
 #endif
 
 
@@ -81,8 +82,14 @@ void spi_initialization() { //[EMRL] La modificacion del nombre se debe a que ot
     printf("\n>> Initializing SPI bus...\n");
 
     // Definimos al B-Sample como esclavo con GPIO_CS 0 y frecuencia 100MHz
-    spi_slave_t idneo_slave = SPI_SLAVE(GPIO_CS, IDNEO_SPI_SPEED);
+    spi_slave_t idneo_slave = SPI_SLAVE(csid, IDNEO_SPI_SPEED);
     idneo_slave.data_mode = SPI_DATA_MODE_0;  // CPOL = 0, CPHA = 0
+
+    // Validamos el csid del slave
+    if (spi_validate_slave(idneo_slave) != SPI_CODE_OK) {
+        printf("Error: csid no válido\n");
+        return;
+    }
 
     // Inicializamos SPI1 (HOST1)
     spi_pynq = spi_init(SPI_IDX_HOST, idneo_slave); 
@@ -91,6 +98,18 @@ void spi_initialization() { //[EMRL] La modificacion del nombre se debe a que ot
         printf("Error al inicializar SPI\n");
         return false;
     }
+
+    // Sets the slave configuration options and the slave CSID.
+    if (spi_set_slave(&spi_pynq) != SPI_CODE_OK) {
+        printf("Error setting slave config\n");
+        return;
+    }
+
+    gpio_write(GPIO_CS, true);
+
+    //uint32_t freq_deseada = 10000000; // 10 MHz
+    //uint32_t freq_real = spi_true_slave_freq(freq_deseada);
+    //printf("Frecuencia real configurada: %u Hz\n", freq_real);
 
     // Enable global interrupt for machine-level interrupts
     CSR_SET_BITS(CSR_REG_MSTATUS, CSR_INTR_EN);
@@ -131,6 +150,13 @@ spi_codes_e spi_transfer(float* sendbuf, float* recvbuf, size_t len, spi_dir_e d
     // PYNQ-Z2
     // =======================================================
     #else
+
+        // Validamos el bus spi antes de cualquier operación
+        if (spi_prepare_transfer(&spi_pynq) != SPI_CODE_OK) {
+            printf("Error setting transfer\n");
+            return;
+        }
+
         // Convertimos los punteros float* a uint32_t* como espera el SDK
         const uint32_t* txbuf = (const uint32_t*)sendbuf;
         uint32_t* rxbuf = (uint32_t*)recvbuf;

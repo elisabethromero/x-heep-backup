@@ -51,9 +51,7 @@
 /**                                                                        **/
 /****************************************************************************/
 //[EMRL] Pin de sincronización del bus SPI
-uint8_t synq;
-//[EMRL] Chip select
-uint32_t csid = 0; 
+uint8_t synq; 
 //[EMRL] Definiciones para el bucle
 uint16_t i;
 
@@ -146,6 +144,8 @@ bool uwb_ready = false; // Indica si el UWB está listo para recibir comandos
  */
 __attribute__((section(".heap"), used)) uint8_t ucHeap[configTOTAL_HEAP_SIZE];
 
+/* Timer 0 AO Domain as Tick Counter */
+static rv_timer_t timer_0_1;
 
 //[EMRL]
 /****************************************************************************/
@@ -177,6 +177,12 @@ void vApplicationMallocFailedHook( void )
 	printf( "error: application malloc failed\n\r" );
 	__asm volatile( "ebreak" );
 	for( ;; );
+}
+/*-----------------------------------------------------------*/
+
+void freertos_risc_v_application_exception_handler(uint32_t mcause)
+{
+	printf("App mcause:%d\r\n", mcause);
 }
 /*-----------------------------------------------------------*/
 
@@ -258,6 +264,48 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer,
  */
 void system_init(void)
 {
+// Get current Frequency
+    soc_ctrl_t soc_ctrl;
+    soc_ctrl.base_addr = mmio_region_from_addr((uintptr_t)SOC_CTRL_START_ADDRESS);
+    uint32_t freq_hz = soc_ctrl_get_frequency(&soc_ctrl);
+
+    // Setup rv_timer_0_1
+    mmio_region_t timer_0_1_reg = mmio_region_from_addr(RV_TIMER_AO_START_ADDRESS);
+    rv_timer_init(timer_0_1_reg, (rv_timer_config_t){.hart_count = 2, .comparator_count = 1}, &timer_0_1);
+	
+    plic_result_t plic_res;
+    plic_res = plic_Init();
+    if (plic_res != kPlicOk) {
+        printf("Init PLIC failed\n\r;");
+        return -1;
+    }
+
+    plic_res = plic_irq_set_priority(GPIO_INTR_INT, 1);
+    if (plic_res != kPlicOk) {
+        printf("Failed\n\r;");
+        return -1;
+    }
+
+    plic_res = plic_irq_set_enabled(GPIO_INTR_INT, kPlicToggleEnabled);
+    if (plic_res != kPlicOk) {
+        printf("Failed\n\r;");
+        return -1;
+    }
+
+	// Just in case you are playing with Tick freq.
+    //rv_timer_approximate_tick_params(freq_hz, kTickFreqHz, &tick_params);
+
+    // Enable interrupt on processor side
+    // Enable global interrupt for machine-level interrupts
+    CSR_SET_BITS(CSR_REG_MSTATUS, 0x8);
+
+    // Set mie.MEIE bit to one to enable machine-level external interrupts
+    //uint32_t mask = 1 << 7;
+    uint32_t mask = 1 << 11;
+    CSR_SET_BITS(CSR_REG_MIE, mask);
+
+    configASSERT(rv_timer_irq_enable(&timer_0_1, 0, 0, kRvTimerEnabled) == kRvTimerOk);
+	configASSERT(rv_timer_counter_set_enabled(&timer_0_1, 0, kRvTimerEnabled) == kRvTimerOk);
 }
 
 /*****************************************************************************
@@ -483,7 +531,7 @@ void butterworth_filter(complex_float_t signal[][BUFFER_LIN_SIZE], int num_selec
 }
 
 void applyFFT(complex_float_t filtered_signals[][BUFFER_LIN_SIZE], int num_selected, float freq_values[][TARGET_FREQS]) {
-    COMPLEX signal_complex[BUFFER_LIN_SIZE]; // Buffer temporal para la FFT
+    //COMPLEX signal_complex[BUFFER_LIN_SIZE]; // Buffer temporal para la FFT
 
     //printf("\n\t[FFT] Aplicando FFT a los CIRs del buffer lineal...\n");
 
@@ -552,10 +600,6 @@ void print_model_processing() {
     printf("\t[MODEL] Inferencia completada.\n\n");
 }
 
-// Probabilidades con softmax
-float probabilities[MODEL_OUTPUT_SIZE];   
-
-
 float frecuencia_objetivo[TARGET_FREQS] = {0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f};
 
 float signal_frequency_sum[TARGET_FREQS] = {
@@ -609,11 +653,11 @@ void postprocess_results(int *results) {
 
 /****************************************************************************/
 /**                                                                        **/
-/*                                UWB  CORE                                 */
+/*                                UWB  API                                  */
 /**                                                                        **/
 /****************************************************************************/
 
-void uwb_init(void *pvParameters){
+void uwb_init(){
     // Comienza la configuración del módulo UWB
     printf("\n>> Starting UWB module configuration...\n");
    
@@ -644,17 +688,19 @@ void uwb_init(void *pvParameters){
         return false;
     }
 
+    print_gpio_states();
+
     int interval_cmd = 200;
 
     // 0. GET_FW_VERSION
     printf("\n0. Getting firmware version...\n");
     uwb_get_version();
-    //vTaskDelay(interval_cmd / portTICK_PERIOD_MS);
+    vTaskDelay(interval_cmd / portTICK_PERIOD_MS);
 
     // 1. CMD_SET_BITFIELD: Disable Watchdog
     printf("\n1. Disabling watchdog...\n");
     uwb_disable_watchdog();
-    //vTaskDelay(interval_cmd / portTICK_PERIOD_MS);
+    vTaskDelay(interval_cmd / portTICK_PERIOD_MS);
 
     // // 2. RX Radio Config
     printf("\n2. Configuring RX radio...\n");
@@ -786,6 +832,12 @@ void uwb_init(void *pvParameters){
     return true;
 }
 
+/****************************************************************************/
+/**                                                                        **/
+/*                                UWB  CORE                                 */
+/**                                                                        **/
+/****************************************************************************/
+
 // FUNCIÓN PARA ENVIAR Y RECIBIR UN COMANDO UCI
 bool send_uci_cmd_get_rsp(uint8_t *cmd_buffer, size_t cmd_len) {
     
@@ -796,8 +848,8 @@ bool send_uci_cmd_get_rsp(uint8_t *cmd_buffer, size_t cmd_len) {
    
     // Bajar CS para iniciar la transmisión 
     //printf("\033[0;31m[INTERRUPCIÓN] GPIO_CS BAJA\033[0m\n");
-    //gpio_write(GPIO_CS, false); //[EMRL] Ya se baja y se sube solo
-    //vTaskDelay(10 / portTICK_PERIOD_MS);
+    gpio_write(GPIO_CS, false); //[EMRL] Ya se baja y se sube solo
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     
     if (!wait_for_gpio_low(GPIO_RDY_IO, RDY_TIMEOUT_MS)) return false;
 
@@ -819,17 +871,18 @@ void gpio_monitor_task(void* arg) {
             if (io_num == GPIO_INT_IO) { // Interrupción del pin INT
                 size_t len = 0;
                 bool level;
-                gpio_read(GPIO_INT_IO, level);
+                gpio_read(GPIO_INT_IO, &level);
                 while (level == 0) {
                     // ==============================================================
                     // RECIBIR RESPUESTA DEL UWB
                     printf("\nRecibiendo respuesta del UWB desde ISR...");
                     // ==============================================================
                     if (!receive_uci_message(recv_buffer,sizeof(recv_buffer), &len)) {
-                        //gpio_write(GPIO_CS, true);  // Asegurar que se libera CS //[EMRL] Ya se baja y se sube solo
+                        gpio_write(GPIO_CS, true);  // Asegurar que se libera CS //[EMRL] Ya se baja y se sube solo
                         printf("\nReceive uci message");
                         break;
-                    } 
+                    }
+                    gpio_read(GPIO_INT_IO, &level); //[EMRL] Seguimos leyendo el pin INT hasta que suba 
                     vTaskDelay(10 / portTICK_PERIOD_MS);
                 }
     
@@ -855,15 +908,16 @@ wait_ntf_result_t  wait_for_notification_or_skip_if_ready(uint32_t timeout_ms) {
     printf("\n\t[WAIT NTF BOOT STATUS] Notificación de arranque UWB...\n");
 
     uint32_t io_num;
-    bool level;
+    bool entrada;
 
     // Si no hay INT pendiente, esperar por él
     //TickType_t start = xTaskGetTickCount();
     TickType_t timeout_ticks = pdMS_TO_TICKS(timeout_ms);
     
     // CASO 1: INT_IO ya está en bajo → notificación pendiente
-    gpio_read(GPIO_INT_IO, level);
-    if (level == 0) {
+    gpio_read(GPIO_INT_IO, &entrada);
+    printf("\t[WAIT_BOOT] level returned: %d\n", entrada);
+    if (entrada == 0) {
         // Ya hay notificación pendiente (INT está bajo)
         printf("\t[WAIT_BOOT] INT ya está en LOW. Notificación pendiente.\n");
         return WAIT_NTF_PENDING;
@@ -890,7 +944,7 @@ void wait_for_gpio_int(void* arg) {
     bool level;
     for (;;) {
         if (xQueueReceive(int_evt_queue, &io_num, portMAX_DELAY)) {
-            gpio_read(io_num, level);
+            gpio_read(io_num, &level);
             const char* pin_name = (io_num == GPIO_INT_IO) ? "INT" :
                                    (io_num == GPIO_RDY_IO) ? "RDY" : "UNKNOWN";
 
@@ -904,7 +958,7 @@ bool wait_for_gpio_low(gpio_pin_number_t gpio, uint32_t timeout_ms) {
     TickType_t start = xTaskGetTickCount();
     TickType_t timeout_ticks = pdMS_TO_TICKS(timeout_ms);
     bool level;
-    gpio_read(gpio, level);
+    gpio_read(gpio, &level);
     if (level == 1) {
     printf("\n\t[WAIT %s] Esperando a que %s para recibir mensaje...\n", gpio == GPIO_INT_IO ? "INT" : "RDY", gpio == GPIO_INT_IO ? "INT" : "RDY");
     }
@@ -914,7 +968,8 @@ bool wait_for_gpio_low(gpio_pin_number_t gpio, uint32_t timeout_ms) {
             printf("\t[WAIT] %s_GPIO está en LOW.\n", gpio == GPIO_INT_IO ? "INT" : "RDY");
             return true;
         }
-        //vTaskDelay(10 / portTICK_PERIOD_MS);
+        gpio_read(gpio, &level);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
     printf("\tTimeout esperando %s, no se recibió mensaje.\n", gpio == GPIO_INT_IO ? "INT" : "RDY");
 
@@ -931,13 +986,13 @@ bool transmit_uci_command(uint8_t *cmd_buffer, size_t len) {
     if ((spi_transfer(cmd_buffer, NULL, len, SPI_DIR_TX_ONLY) != SPI_CODE_OK))// Inicializa la transferencia SPI
     {
         printf("Error en transferencia SPI.\n");
-        //gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
+        gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
         success = false;
         return false;
     } else {
         // Subir CS para terminar la transmisión
-        //vTaskDelay(5 / portTICK_PERIOD_MS);
-        //gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
+        vTaskDelay(5 / portTICK_PERIOD_MS);
+        gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
         printf("\tComando enviado correctamente.\n");
     }
     return true;
@@ -951,15 +1006,15 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
     printf("\n\t[RECV] Recibiendo respuesta de UWB...\n");
     
     // Bajar CS para iniciar la transmisión
-    //gpio_write(GPIO_CS, false); //[EMRL] Ya se baja y se sube solo
+    gpio_write(GPIO_CS, false); //[EMRL] Ya se baja y se sube solo
     printf("\tBajando CS para recibir mensaje...\n");
-    //vTaskDelay(5 / portTICK_PERIOD_MS);
+    vTaskDelay(5 / portTICK_PERIOD_MS);
 
     // Leer cabecera de 4 bytes
     printf("\tLeyendo cabecera y payload length...\n");
     uint8_t header[4];
     if (spi_transfer(NULL, header, 4, SPI_DIR_RX_ONLY) != SPI_CODE_OK) {
-        //gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
+        gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
         return false;
     }
 
@@ -968,7 +1023,7 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
     UCIPacketStatus status = analyze_uci_header(header, 4, &hdr);
     if (status == UCI_PACKET_INVALID) {
         printf("\tCabecera inválida. Cancelando recepción.\n");
-        //gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
+        gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
         return false;
     } 
     
@@ -984,7 +1039,7 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
     // Leer el payload y CRC
     printf("\tLeyendo payload y CRC...\n");
     if (spi_transfer(NULL, recv_buffer + 4, hdr.payload_len + 2, SPI_DIR_RX_ONLY) != SPI_CODE_OK) {
-        //gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
+        gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
         return false;
     }
     // Extraer el payload
@@ -1015,8 +1070,8 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
     }
 
     // Subir CS para finalizar la recepción
-    //gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
-    //vTaskDelay(10 / portTICK_PERIOD_MS);
+    gpio_write(GPIO_CS, true); //[EMRL] Ya se baja y se sube solo
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     
     // Actualizar el tamaño del buffer de respuesta
     *recv_len = total_len;
@@ -1093,7 +1148,8 @@ UCIPacketStatus analyze_uci_header(const uint8_t *rx_buffer, size_t len, UCIPack
     out->payload_len = ((uint16_t)rx_buffer[2] << 8) | rx_buffer[3];
     
     printf("\t>> MT=0x%02X, GID=0x%02X, OID=0x%02X\n",out->mt, out->gid, out->oid);
-    printf("\tTamaño total del paquete: %zu bytes\n", out->payload_len + 4 + 2);
+    //printf("\tTamaño total del paquete: %zu bytes\n", out->payload_len + 4 + 2);
+    printf("\tTamaño total del paquete: %lu bytes\n", (unsigned long)(out->payload_len + 4 + 2));
     printf("\tHeader: MT=0x%02X, GID=0x%02X, OID=0x%02X, PBF=%u, PayloadLen=%u, Pldext=%u, RFU=%u\n",
            out->mt, out->gid, out->oid, out->pbf, out->payload_len, out->pldext, out->rfu);
 
@@ -1178,19 +1234,19 @@ typedef enum {
 
 void print_resp_status(uint8_t code) {
     switch ((resp_status_t)code) {
-        case STATUS_OK: printf("\t\t✓ STATUS_OK: Operación exitosa\n"); break;
-        case STATUS_REJECTED:  printf("\t\t✗ STATUS_REJECTED: Operación no permitida en el estado actual\n"); break;
-        case STATUS_FAILED: printf("\t\t✗ STATUS_FAILED: La operación falló\n"); break;
-        case STATUS_SYNTAX_ERROR: printf("\t\t✗ STATUS_SYNTAX_ERROR: Estructura de paquete inválida\n"); break;
-        case STATUS_INVALID_PARAM: printf("\t\t✗ STATUS_INVALID_PARAM: Parámetro válido pero valor incorrecto\n"); break;
-        case STATUS_INVALID_RANGE: printf("\t\t✗ STATUS_INVALID_RANGE: Valor fuera de rango\n"); break;
-        case STATUS_INVALID_MESSAGE_SIZE: printf("\t\t✗ STATUS_INVALID_MESSAGE_SIZE: Tamaño de mensaje incorrecto\n"); break;
-        case STATUS_UNKNOWN_GID: printf("\t\t✗ STATUS_UNKNOWN_GID: GID desconocido\n"); break;
-        case STATUS_UNKNOWN_OID: printf("\t\t✗ STATUS_UNKNOWN_OID: OID desconocido\n"); break;
-        case STATUS_READ_ONLY: printf("\t\t✗ STATUS_READ_ONLY: Campo de solo lectura\n"); break;
-        case STATUS_COMMAND_RETRY: printf("\t\t✗ STATUS_COMMAND_RETRY: Se requiere reintento del comando\n"); break;
-        case STATUS_CRC_ERROR: printf("\t\t✗ STATUS_CRC_ERROR: Error de CRC\n"); break;
-        default: printf("\t\t✗ Código desconocido o reservado: 0x%02X\n", code); break;
+        case STATUS_OK: printf("\t\tSTATUS_OK: Operación exitosa\n"); break;
+        case STATUS_REJECTED:  printf("\t\tSTATUS_REJECTED: Operación no permitida en el estado actual\n"); break;
+        case STATUS_FAILED: printf("\t\tSTATUS_FAILED: La operación falló\n"); break;
+        case STATUS_SYNTAX_ERROR: printf("\t\tSTATUS_SYNTAX_ERROR: Estructura de paquete inválida\n"); break;
+        case STATUS_INVALID_PARAM: printf("\t\tSTATUS_INVALID_PARAM: Parámetro válido pero valor incorrecto\n"); break;
+        case STATUS_INVALID_RANGE: printf("\t\tSTATUS_INVALID_RANGE: Valor fuera de rango\n"); break;
+        case STATUS_INVALID_MESSAGE_SIZE: printf("\t\tSTATUS_INVALID_MESSAGE_SIZE: Tamaño de mensaje incorrecto\n"); break;
+        case STATUS_UNKNOWN_GID: printf("\t\tSTATUS_UNKNOWN_GID: GID desconocido\n"); break;
+        case STATUS_UNKNOWN_OID: printf("\t\tSTATUS_UNKNOWN_OID: OID desconocido\n"); break;
+        case STATUS_READ_ONLY: printf("\t\tSTATUS_READ_ONLY: Campo de solo lectura\n"); break;
+        case STATUS_COMMAND_RETRY: printf("\t\tSTATUS_COMMAND_RETRY: Se requiere reintento del comando\n"); break;
+        case STATUS_CRC_ERROR: printf("\t\tSTATUS_CRC_ERROR: Error de CRC\n"); break;
+        default: printf("\t\tCódigo desconocido o reservado: 0x%02X\n", code); break;
     }
 }
 
@@ -1351,7 +1407,9 @@ void interpret_ntf_radar_result(const uint8_t *payload, size_t payload_len) {
         // Enviar directamente por la cola, sin reorganizar nada
         if (xQueueSend(cir_queue, cir_bytes, portMAX_DELAY) != pdTRUE) {
             printf("\n\t\t[ERROR] Cola de CIRs llena, no se pudo enviar.\n");
-        } 
+        } else  {
+            printf("\t\t[RADAR_NTF] CIR enviado a la cola.\n");
+        }
     } else {
         printf("\t\t[RADAR_NTF] CIR Taps data not available.\n");
     }
@@ -1728,7 +1786,7 @@ void sync_init(void) {
     }
 
     printf("Semaphores and queues initialized successfully.\n");
-    //vTaskDelay(500 / portTICK_PERIOD_MS); [EMRL] Aún no se ha lanzado el scheduler y el programa se queda parado aquí
+    //vTaskDelay(500 / portTICK_PERIOD_MS); //[EMRL] Aún no se ha lanzado el scheduler y el programa se queda parado aquí
 }
 
 /****************************************************************************/
@@ -1738,12 +1796,32 @@ void sync_init(void) {
 /****************************************************************************/
 
 // Manejador de interrupciones
-void gpio_isr_handler(void* arg) { 
-    uint32_t gpio_num = (uint32_t) arg;
+void gpio_isr_handler_int() { 
+    uint32_t gpio_num = GPIO_INT_IO;
+
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    /*
+    if (gpio_num == GPIO_INT_IO || gpio_num == GPIO_RDY_IO) {
+        // Enviar a la cola general de eventos (RDY, CS, etc.)
+        xQueueSendFromISR(gpio_evt_queue, &gpio_num, &xHigherPriorityTaskWoken);
+    }
+    */
+    if (gpio_num == GPIO_INT_IO) {
+        // Enviar a la cola de interrupciones
+        xQueueSendFromISR(int_evt_queue, &gpio_num, &xHigherPriorityTaskWoken);
+    }
+
+    // Para hacer un cambio de contexto inmediato si es necesario
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+// Manejador de interrupciones
+void gpio_isr_handler_rdy() { 
+    uint32_t gpio_num = GPIO_RDY_IO;
 
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-    if (gpio_num == GPIO_INT_IO || gpio_num == GPIO_RDY_IO) {
+    if (gpio_num == GPIO_RDY_IO) {
         // Enviar a la cola general de eventos (RDY, CS, etc.)
         xQueueSendFromISR(gpio_evt_queue, &gpio_num, &xHigherPriorityTaskWoken);
     }
@@ -1759,8 +1837,9 @@ void gpio_init(){
     gpio_result_t gpio_res;
     gpio_cfg_t int_conf = {0};
     gpio_cfg_t rdy_conf = {0};
+    gpio_cfg_t cs_conf = {0};
 
-    // Configurar GPIOs de salida
+    // Configurar GPIOs de entrada
     int_conf.pin = GPIO_INT_IO;
     int_conf.mode = GpioModeIn;
     int_conf.en_input_sampling = true;
@@ -1773,7 +1852,7 @@ void gpio_init(){
         return EXIT_FAILURE;
     }
 
-    // Configurar GPIOs de salida
+    // Configurar GPIOs de entrada
     rdy_conf.pin = GPIO_RDY_IO;
     rdy_conf.mode = GpioModeIn;
     rdy_conf.en_input_sampling = true;
@@ -1786,21 +1865,29 @@ void gpio_init(){
         return EXIT_FAILURE;
     }
 
+    // Configurar GPIOs de salida
+    cs_conf.pin = GPIO_CS;
+    cs_conf.mode = GpioModeOutPushPull;
+    // gpio_config(&io_conf);
+    gpio_res = gpio_config(cs_conf);
+    if (gpio_res != GpioOk) {
+        printf("Failed to configure GPIO at pin %d\n", GPIO_CS);
+        return EXIT_FAILURE;
+    }
 
     // Crear cola de eventos
     if(!gpio_evt_queue) {
-        gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+        gpio_evt_queue = xQueueCreate(25, sizeof(uint32_t));
     }
     if(!int_evt_queue) {
-        int_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+        int_evt_queue = xQueueCreate(25, sizeof(uint32_t));
     }
 
-    gpio_assign_irq_handler(GPIO_INT_IO, gpio_isr_handler);
-    gpio_assign_irq_handler(GPIO_RDY_IO, gpio_isr_handler);
-    //gpio_assign_irq_handler(GPIO_CS, gpio_isr_handler);
+    gpio_assign_irq_handler(GPIO_INTR_INT, &gpio_isr_handler_int);
+    gpio_assign_irq_handler(GPIO_INTR_RDY, &gpio_isr_handler_rdy);
 
     printf("GPIO interrupt system initialized successfully.\n");
-    //vTaskDelay(500 / portTICK_PERIOD_MS); [EMRL] Aún no se ha lanzado el scheduler y el programa se queda parado aquí
+    //vTaskDelay(500 / portTICK_PERIOD_MS); //[EMRL] Aún no se ha lanzado el scheduler y el programa se queda parado aquí
 }
 
 /****************************************************************************/
@@ -1904,7 +1991,7 @@ void task_uwb_menu(void *pvParameters) {
                         if (level == 0){
                             while (level == 0) {
                                 if (!receive_uci_message(recv_buffer,sizeof(recv_buffer), &len)) {
-                                    //gpio_write(GPIO_CS, true);  // Asegurar que se libera CS //[EMRL] Ya se baja y se sube solo
+                                    gpio_write(GPIO_CS, true);  // Asegurar que se libera CS //[EMRL] Ya se baja y se sube solo
                                     gpio_read(GPIO_INT_IO, &level);
                                     break;
                                 } 
@@ -1932,7 +2019,11 @@ void main()
 
     BaseType_t xReturned;
 
+    SetupHardware(); // Configuración de hardware
+
     printf("FreeRTOS version: %s\n\r", tskKERNEL_VERSION_NUMBER);
+
+    
 
     // Inicialización de periféricos y drivers
     sync_init();                    // Semáforos, colas...
@@ -1945,15 +2036,16 @@ void main()
     
     xTaskCreate(uwb_init, "UWB Task", 8192, NULL, 2, &uwb_task_handle);
     xTaskCreate(gpio_monitor_task, "gpio_monitor_task", 4096, NULL, 3, NULL);
-    //xTaskCreate(task_control, "Control Task", 4096, NULL, 3, &control_task_handle);
-    //xTaskCreate(task_data_acquisition, "Data Acquisition", 4096, NULL, 4, &acquisition_task_handle);
-    //xTaskCreate(task_algorithm_execution, "Algorithm Execution", 8192, NULL, 4, &algorithm_task_handle);
+
+    //uwb_init();         // Módulo UWB
+
+
+    xTaskCreate(task_control, "Control Task", 4096, NULL, 3, &control_task_handle);
+    xTaskCreate(task_data_acquisition, "Data Acquisition", 4096, NULL, 4, &acquisition_task_handle);
+    xTaskCreate(task_algorithm_execution, "Algorithm Execution", 8192, NULL, 4, &algorithm_task_handle);
     
     printf("Free heap after task creation: %d bytes\n", xPortGetFreeHeapSize());
 
-    //uwb_init();         // Módulo UWB
-    
-    //En FreeRTOS para PYNQ-Z2 se deberá iniciar manualmente el scheduler
     vTaskStartScheduler();
 
     // Mantener app_main() en loop infinito para evitar que termine

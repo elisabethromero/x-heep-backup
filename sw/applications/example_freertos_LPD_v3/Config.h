@@ -27,11 +27,14 @@ typedef double                            FP64;
 
 //[EMRL] Datos necesarios SPI PYNQ
 #define IDNEO_SPI         SPI_IDX_HOST //SPI_IDX_HOST_2
-#define IDNEO_SPI_SPEED   1000000 //100000
+#define IDNEO_SPI_SPEED   15000000 //He puesto 15MHz, lo mismo que la PYNQ pero NO LO ENTIENDO
 
-#define GPIO_CS 0 // Chip select del SPI
-#define GPIO_RDY_IO  6
-#define GPIO_INT_IO  7
+#define GPIO_CS 6 // Chip select del SPI
+#define GPIO_RDY_IO  8
+#define GPIO_INT_IO  9
+
+#define GPIO_INTR_INT GPIO_INTR_8 // GPIO para interrupciones
+#define GPIO_INTR_RDY GPIO_INTR_9 // GPIO para RDY
 
 #define FIC_SPI_HOST_MEIE  20               // SPI Host 1 fast interrupt bit enable
 #define CSR_INTR_EN        0x08             // CPU Global interrupt enable

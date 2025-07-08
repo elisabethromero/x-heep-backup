@@ -2,7 +2,7 @@
 #define MODEL_H
 
 // Funciones del modelo
-float sigmoid(float x);
-void score(float *input, float *output);
+double sigmoid(double x);
+void score(double *input, double *output);
 
 #endif

@@ -43,7 +43,7 @@
 
     // Variables globales (declaradas en el .c)
     extern uint8_t synq;
-    //extern uint32_t csid;
+    extern uint32_t csid;
     extern uint16_t i;
     extern spi_t spi_pynq;
 

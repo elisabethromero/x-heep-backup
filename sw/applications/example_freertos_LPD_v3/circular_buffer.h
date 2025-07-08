@@ -5,15 +5,15 @@
 #include <stdint.h>
 #include "radar_config.h"
 
-#define CIRs_PER_SECOND 25   // 1 CIR por segundo
+#define CIRs_PER_SECOND 25   // 25 CIRs por segundo
 #define CIR_TAPS 32 // 32 TAPs por CIR
 #define SECONDS_SAMPLING 11 // 11 segundos de datos
 
 #define BUFFER_CIRC_SIZE (CIRs_PER_SECOND * SECONDS_SAMPLING)  // 275 CIRs (11s de CIRS)
 
 typedef struct {
-    float real;
-    float imag;
+    int16_t real;
+    int16_t imag;
 } complex_float_t;
 
 typedef struct {
