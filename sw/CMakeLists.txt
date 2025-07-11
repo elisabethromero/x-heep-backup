@@ -116,6 +116,8 @@ SET(INCLUDE_FOLDERS "-I ${RISCV}/${COMPILER_PREFIX}elf/include \
                      -I ${RISCV}/${COMPILER_PREFIX}elf/include/ \
                      -I ${ROOT_PROJECT} \
                      -I ${SOURCE_PATH} \
+                     -I ${SOURCE_PATH}build/_deps/freertos_kernel-src/include \
+                     -I ${SOURCE_PATH}build/_deps/freertos_kernel-src/portable/GCC/RISC-V \
 					           ${dir_list_str}")                                      
 
 #######################################################################
@@ -148,6 +150,8 @@ FOREACH(file_path IN LISTS new_list)
   elseif( ${file_path} MATCHES "${SOURCE_PATH}applications/${PROJECT}/.*${MAINFILE}\." ) # look for main.*
     SET(app_found 1)
   elseif( ${file_path} MATCHES "${SOURCE_PATH}applications/${PROJECT}/" ) # other sources
+    SET(add 1)
+  elseif( ( ${file_path} MATCHES "${SOURCE_PATH}freertos/" ) AND ( ${PROJECT} MATCHES "freertos" ) )
     SET(add 1)
   endif()
 
@@ -355,10 +359,21 @@ endif()
 # Set CMAKE flags
 
 # specify the C standard
-if(NOT ${PROJECT} MATCHES "coremark")
+if(DEFINED DEBUG AND DEBUG MATCHES "1")
   set(COMPILER_LINKER_FLAGS "\
     -march=${CMAKE_SYSTEM_PROCESSOR} \
-    -w -O2 -g  -nostdlib  \
+    -w -O0 -g -nostdlib  \
+    -ffunction-sections \
+    -DHOST_BUILD \
+    -D${CRT_TYPE} \
+    -D${CRTO} \
+    -DportasmHANDLE_INTERRUPT=vSystemIrqHandler\
+    ${COMPILER_FLAGS}\
+  ")
+elseif(NOT ${PROJECT} MATCHES "coremark")
+  set(COMPILER_LINKER_FLAGS "\
+    -march=${CMAKE_SYSTEM_PROCESSOR} \
+    -w -O2 -nostdlib  \
     -ffunction-sections \
     -DHOST_BUILD \
     -D${CRT_TYPE} \
@@ -369,7 +384,7 @@ if(NOT ${PROJECT} MATCHES "coremark")
 else()
   set(COMPILER_LINKER_FLAGS "\
     -march=${CMAKE_SYSTEM_PROCESSOR} \
-    -w -O3 -g  -nostdlib -falign-functions=16 -funroll-all-loops -falign-jumps=4 -finline-functions -Wall -static -pedantic -DPERFORMANCE_RUN=1 -DITERATIONS=1 -DHAS_STDIO=1 -DHAS_PRINTF=1 \
+    -w -O3 -nostdlib -falign-functions=16 -funroll-all-loops -falign-jumps=4 -finline-functions -Wall -static -pedantic -DPERFORMANCE_RUN=1 -DITERATIONS=500 -DHAS_STDIO=1 -DHAS_PRINTF=1 -DHAS_FLOAT=1\
     -ffunction-sections \
     -DHOST_BUILD \
     -D${CRT_TYPE} \
