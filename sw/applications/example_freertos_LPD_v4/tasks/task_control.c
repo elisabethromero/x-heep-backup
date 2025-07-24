@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/timers.h"
-#include "freertos/semphr.h"
-#include "freertos/queue.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "timers.h"
+#include "semphr.h"
+#include "queue.h"
 #include "linear_buffer.h"
 #include "circular_buffer.h"
 #include "uwb_api.h"
@@ -43,10 +43,10 @@ void task_control(void *pvParameter) {
 
     while (1) {   
         
-            command = getchar(); //Limpiar el buffer de entrada antes de cada lectura
+            //command = getchar(); //Limpiar el buffer de entrada antes de cada lectura
 
-            scanf("%c", &command);
-            //command = 's'; // Simular comando de inicio para pruebas
+            //scanf("%c", &command);
+            command = 's'; // Simular comando de inicio para pruebas
             // Enviar comando a la cola
             if(command == 's'  || command == 'p' || command == 'q' || command == 'm' || 
                 command == 'S' || command == 'P' || command == 'Q' || command == 'M') {

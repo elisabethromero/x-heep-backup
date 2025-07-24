@@ -2,20 +2,20 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/timers.h"
-#include "freertos/semphr.h"
-#include "freertos/queue.h"
-#include "driver/spi_master.h" //solo en esp32, sustituir en fpga
-#include "driver/gpio.h" //solo en esp32, sustituir en fpga
+#include "FreeRTOS.h"
+#include "task.h"
+#include "timers.h"
+#include "semphr.h"
+#include "queue.h"
+#include "spi_host.h"
+#include "spi_sdk.h" 
+#include "gpio.h" 
 #include <math.h>
 #include "model.h"
 #include "circular_buffer.h"
 #include "linear_buffer.h"
 #include "uwb_api.h"
-#include "esp_timer.h"
-#include "esp_log.h"
+#include "timer_sdk.h"
 #include "task_control.h"
 #include "task_data_acquisition.h"
 #include "task_algorithm_execution.h"
@@ -24,10 +24,7 @@
 #include "sync.h"
 #include "config.h"
 #include "uwb_core.h"
-// #include "cir_input_sequence_EXE_AEE_2.c"
-#include "cir_input_sequence_EXE_EEE_3.c"
-// #include "cir_input_sequence_RX2_EXB_EEE_high_30_awake_3.c"
-// #include "cir_input_sequence_RX2_EXB_EEE_high_30_deep_3.c"
+#include "cir_input_sequence_EXE_EEE_3.h"
 //SemaphoreHandle_t data_sampling_ready_sem = NULL;
 //SemaphoreHandle_t data_fft_ready_sem = NULL;
 
@@ -105,23 +102,7 @@ void receive_data(complex_float_t *cir_taps) {
     if (CIRs_PER_SECOND < 4)
         print_complex_cir(cir_taps); // Imprimir los taps complejos
 }
-    //=====================================================================
-    // PARA INTERRUPCIONES
-    //uint32_t io_num;
-    //gpio_set_level(18, 1); // Esto lanza la interrupción en el master
-    //vTaskDelay(10 / portTICK_PERIOD_MS);
-    //gpio_set_level(18, 0);
-    //if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
-    //    printf("Interrupt received------------------\n");
-    //if (xSemaphoreTake(gpio_evt_queue , portMAX_DELAY) == pdTRUE) {
-    //=====================================================================    
-        /*
-        if ((spi_transfer(sendbuf, recvbuf, CIR_TAPS, SPI_DIR_BIDIR) != SPI_FLAG_OK) && (spi_transfer(sendbuf, recvbuf, CIR_TAPS, SPI_DIR_BIDIR) != ESP_OK)) {
-            printf("Error en transferencia SPI.\n");
-        }*/
-        //printReceivedData(recvbuf);
-    //}
-// }
+
 
 static int cirs_since_last_copy = 0;
 
@@ -266,11 +247,13 @@ void extract_and_convert_to_complex(const uint8_t *cir_bytes, complex_float_t *c
 
 // Imprime los taps como números complejos
 void print_complex_cir(complex_float_t *cir_taps) {
+    /*
     printf("Taps complejos (I + jQ):\n");
     for (int i = 0; i < CIR_TAPS; i++) {
         printf("Tap %02d: %4d, %4dj\n", i, cir_taps[i].real, cir_taps[i].imag);
         //printf("Tap %02d: %+4.0f %+4.0fj\n", i, cir_taps[i].real, cir_taps[i].imag);
     }
+    */
 }
 
 
@@ -293,9 +276,11 @@ void adjustLinearBuffer(LinearBuffer *lin_buffer) {
 }
 
 void printReceivedData(float *recvbuf){
+    /*
     printf("\tRecibido: ");
     for(int i = 0; i < CIR_TAPS; i++){
         printf("%.3f ", recvbuf[i]);
     }
     printf("\n");
+    */
 }

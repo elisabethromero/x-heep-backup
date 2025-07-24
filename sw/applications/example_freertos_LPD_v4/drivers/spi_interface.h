@@ -2,7 +2,8 @@
 #define SPI_INTERFACE_H
 
 #include "spi_host.h" 
-
+#include "spi_sdk.h"
+#include "Config.h"
 // =========================================================
 // ESP32
 // =========================================================
@@ -33,17 +34,25 @@ extern spi_bus_config_t buscfg;
 
 extern spi_device_handle_t handle;
 
-#endif // ESP32
 // ==========================================================
+#else
+    #include "gpio.h"
+    #include "fast_intr_ctrl.h"
+    #include "Config.h"
 
+    // Variables globales (declaradas en el .c)
+    extern uint8_t synq;
+    extern uint32_t csid;
+    extern uint16_t i;
+    extern spi_t spi_pynq;
 
-
+#endif
 // Inicializa el bus SPI y el dispositivo esclavo
-void spi_init();
+void spi_initialization();
 
 // Realiza una transacción SPI completa (envío y recepción)
 //spi_return_flags_e spi_transfer(float *tx_buf, float *rx_buf, size_t len, spi_dir_e direction);
-spi_return_flags_e spi_transfer(uint8_t *tx_buf, uint8_t *rx_buf, size_t len, spi_dir_e direction);
+spi_codes_e spi_transfer(uint8_t *tx_buf, uint8_t *rx_buf, size_t len, spi_dir_e direction);
 
 
 #endif // SPI_INTERFACE_H

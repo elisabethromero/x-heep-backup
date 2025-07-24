@@ -1,10 +1,9 @@
 #ifndef TASK_CONTROL_H
 #define TASK_CONTROL_H
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/timers.h"
-
+#include "FreeRTOS.h"
+#include "task.h"
+#include "timers.h"
 extern TickType_t start_acquisition_time;
 
 extern unsigned short cir_sequence_index; // Índice de la secuencia de CIRs

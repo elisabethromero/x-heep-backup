@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "freertos/FreeRTOS.h"
-#include "driver/gpio.h"
+#include "FreeRTOS.h"
+#include "gpio.h"
 #include "uwb_commands.h"
 
 extern bool success;
@@ -80,7 +80,7 @@ void build_uci_packet();
 bool send_uci_cmd_get_rsp(uint8_t *cmd_buffer, size_t cmd_len);
 bool transmit_uci_command(uint8_t *cmd_buffer, size_t len);
 bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len);
-bool wait_for_gpio_low(gpio_num_t gpio, uint32_t timeout_ms);
+bool wait_for_gpio_low(gpio_pin_number_t gpio, uint32_t timeout_ms);
 //void parse_uwb_response(const uint8_t *rx_buffer, size_t length);
 void gpio_monitor_task(void* arg);
 

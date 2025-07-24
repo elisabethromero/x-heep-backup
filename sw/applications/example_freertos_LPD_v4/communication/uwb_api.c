@@ -1,9 +1,9 @@
 #include <stdbool.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/timers.h"
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "timers.h"
+#include "semphr.h"
+#include "queue.h"
 #include "gpio.h"
 #include "spi_interface.h"
 #include "uwb_core.h"
@@ -12,6 +12,7 @@
 #include "sync.h"
 #include <string.h>
 #include "task_control.h"
+#include "Config.h"
 
 #include "radar_config.h"
 

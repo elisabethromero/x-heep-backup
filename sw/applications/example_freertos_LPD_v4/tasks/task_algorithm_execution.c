@@ -12,12 +12,12 @@
 #include "task_control.h"
 #include "task_data_acquisition.h"
 #include "task_algorithm_execution.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "freertos/timers.h"
-#include "input_data_generated.c" // Datos de entrada generados para pruebas
+#include "FreeRTOS.h"
+#include "task.h"
+#include "timers.h"
+#include "semphr.h"
+#include "queue.h"
+#include "input_data_generated.h" // Datos de entrada generados para pruebas
 #include "Config.h"
 
 int results[NUM_EXECUTIONS]; // Array para almacenar resultados de detección (0's y 1's)
@@ -102,6 +102,7 @@ void get_dominant_taps(complex_float_t cirs[][CIR_TAPS], int *dominant_taps){
         dominant_taps[i] = max_index;
     }
     if(CIRs_PER_SECOND < 4){
+        /*
         printf("Índices de los taps dominantes:\n");
         // Imprimir los índices de los taps dominantes
         for(int i = 0; i < BUFFER_LIN_SIZE; i++) {
@@ -114,7 +115,8 @@ void get_dominant_taps(complex_float_t cirs[][CIR_TAPS], int *dominant_taps){
                 printf("]\n");
             else
                 printf(", ");
-        }   
+        }  
+        */ 
     }
 }
 
@@ -129,7 +131,7 @@ void count_tap_frequencies(int *dominant_taps, int *counts_out){
             counts_out[index]++;
         }
     }
-
+    /*
     if(CIRs_PER_SECOND < 4){
         // Imprimir las frecuencias de los taps
         for (int i = 0; i < CIR_TAPS; i++) {
@@ -138,6 +140,7 @@ void count_tap_frequencies(int *dominant_taps, int *counts_out){
             }
         }
     }
+    */
 }
 
 // 7) Se eligen de todos los indices los "domminant_num_tamps" índices más repetidos ordenados de mayor a menor
@@ -176,7 +179,7 @@ void get_top_taps(int *counts, int *top_taps){
     if(CIRs_PER_SECOND < 4){
         // Seleccionar los "dominant_num_taps" índices más frecuentes
         for (int i = 0; i < DOMINANT_NUM_TAPS; i++) {
-            printf("Tap %d: %d apariciones\n", top_taps[i], tap_counts[i].count);
+            //printf("Tap %d: %d apariciones\n", top_taps[i], tap_counts[i].count);
         }
     }
 }
@@ -185,7 +188,7 @@ void get_top_taps(int *counts, int *top_taps){
 // Y combinando todos los rangos formados, quedarse con el que los abarque a todos
 // 4. Expandir con vecinos ±N
 void expand_with_neighbors(int *base_taps, int num_base, int *num_selected, int *expanded_out){
-    printf("\t[PREPROCESSING] Expanding taps with neighbors...\n");
+    //printf("\t[PREPROCESSING] Expanding taps with neighbors...\n");
 
     int included[CIR_TAPS] = {0}; // Para marcar los índices ya incluidos
     int count = 0;
@@ -204,6 +207,7 @@ void expand_with_neighbors(int *base_taps, int num_base, int *num_selected, int 
     }
 
     *num_selected = count;
+    /*
     if(CIRs_PER_SECOND < 4){
         printf("Índices expandidos: ");
         for (int i = 0; i < count; i++) {
@@ -211,6 +215,7 @@ void expand_with_neighbors(int *base_taps, int num_base, int *num_selected, int 
         }
         printf("\n");
     }
+    */
     //printf("Numero de taps seleccionados: %d\n", count);
 }
 
@@ -235,7 +240,7 @@ void extract_time_series_of_taps(complex_float_t cirs[][CIR_TAPS], int *selected
             }
         }
     }
-
+    /*
     if(CIRs_PER_SECOND < 4){
         // Imprimir las series temporales
         for (int j = 0; j < num_selected; j++) {
@@ -248,6 +253,7 @@ void extract_time_series_of_taps(complex_float_t cirs[][CIR_TAPS], int *selected
         }
         printf("\n");
     }
+    */
 }
 
 
@@ -498,23 +504,24 @@ void run_model(double model_input[TARGET_FREQS]) {
     if(xSemaphoreTake(data_fft_ready_sem, portMAX_DELAY)){
 
         printf("\n\t[MODEL] Running inference (sample %d)...\n", input_freq_index);
-
+        /*
         printf("\t[MODEL] Model input: \n\t");
 
         // Imprimir los valores de entrada
         for (int i = 0; i < TARGET_FREQS; i++) {
             printf("%.10lf ", model_input[i]);
         }
-
+        */
         // Realizar la inferencia con el modelo LGBM usando float
         // score(signal_frequency_sum, model_output);
         score(model_input, model_output);
-        
+        /*
         // Print the inference result
         printf("\n\t[MODEL] Model output: \n");
         for (int i = 0; i < MODEL_OUTPUT_SIZE; i++) {
             printf("\tClass %d: %.5f\n", i, model_output[i]);
         }
+        */
     }
 }
 
@@ -532,10 +539,16 @@ void postprocess(int *results) {
 
     // Evaluar el resultado, si la probabilidad de presencia es mayor al 90%, se considera que hay presencia
     if (model_output[1] > 0.9f) {
-        printf("\n\t\033[1;31m[DETECCIÓN] Presencia detectada con probabilidad %.2f%%.\033[0m\n\n", model_output[1] * 100);
+        int entero1 = (int)(model_output[1] * 100);
+        int decimales1 = (int)((model_output[1] * 100 - entero1) * 100);
+        if (decimales1 < 0) decimales1 *= -1;
+        printf("\n\t\033[1;31m[DETECCIÓN] Presencia detectada con probabilidad %d.%02d%%.\033[0m\n\n", entero1, decimales1);
         presence_detected = 1; // Se detecta presencia
     } else {
-        printf("\n\t\033[1;32m[DETECCIÓN] No se detecta presencia (probabilidad %.2f%%).\033[0m\n\n", model_output[0] * 100);
+        int entero2 = (int)(model_output[0] * 100);
+        int decimales2 = (int)((model_output[0] * 100 - entero2) * 100);
+        if (decimales2 < 0) decimales2 *= -1;
+        printf("\n\t\033[1;32m[DETECCIÓN] No se detecta presencia (probabilidad %d.%02d%%).\033[0m\n\n", entero2, decimales2);
         presence_detected = 0; // No se detecta presencia
     }
 

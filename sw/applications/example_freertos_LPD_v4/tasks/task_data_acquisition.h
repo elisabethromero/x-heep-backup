@@ -1,11 +1,12 @@
 #ifndef TASK_DATA_ACQUISITION_H
 #define TASK_DATA_ACQUISITION_H
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
 
 #define CIR_BYTES (CIR_TAPS * 4) // 32 taps * 4 bytes/tap = 128 bytes
 
+#define SOURCE_DATA 3
 
 // Declaración de funciones
 void receive_data(complex_float_t *cir_taps);

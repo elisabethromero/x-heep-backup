@@ -36,5 +36,5 @@ void sync_init(void) {
     }
     
     printf("Semaphores and queues initialized successfully.\n");
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    //vTaskDelay(500 / portTICK_PERIOD_MS);
 }

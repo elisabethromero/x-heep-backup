@@ -1,6 +1,6 @@
 #include "uwb_commands.h"
 #include <string.h>
-#include "freertos/FreeRTOS.h"
+#include "FreeRTOS.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

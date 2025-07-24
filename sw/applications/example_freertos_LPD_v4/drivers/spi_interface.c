@@ -1,7 +1,12 @@
 #include "spi_interface.h"
 #include <string.h>
-// #include "spi_host.h"
+#include "spi_host.h"
+#include "x-heep.h"
+#include "spi_sdk.h"
 #include "gpio.h"
+#include "hart.h"
+#include "timer_sdk.h"
+#include "Config.h"
 // =========================================================
 // ESP32
 // =========================================================
@@ -40,29 +45,16 @@ esp_err_t ret;
 // ==========================================================
 #else
 
-spi_host_t* spi = spi_host1;  // El dispositivo a usar (dummy en ESP32)
-uint32_t csid = 0;            // Chip select
-
-// 1. CONFIGURACIÓN SPI
-spi_configopts_t config = {
-    .clkdiv = 2,
-    .csnidle = 1,
-    .csntrail = 1,
-    .csnlead = 1,
-    .fullcyc = 0,
-    .cpha = 0,
-    .cpol = 0
-};
-
-//Convierte la configuración configopts (entrada) en una palabra de 32 bits config_reg (salida)
-uint32_t conf_word = spi_create_configopts(config);
+spi_t spi_pynq;
+//[EMRL] Chip select
+uint32_t csid = 0;
 
 
 #endif
 
 
 // Inicialización del SPI
-void spi_init() {
+void spi_initialization() {
     // ======================================================
     // ESP32
     // ======================================================
@@ -95,31 +87,50 @@ void spi_init() {
     // PYNQ-Z2
     // =======================================================
     #else
-    printf("\n>> Initializing SPI bus...\n");
+        printf("\n>> Initializing SPI bus...\n");
 
-    //Aplicación de la configuración del esclavo al SPI_Host
-    if (spi_set_configopts(spi, csid, conf_word) != SPI_FLAG_OK) {
-        printf("Error al configurar el dispositivo esclavo\n");
-        return -1;
-    }
-    
-    // HABILITAR SPI
-    spi_set_enable(spi, true);
-    spi_output_enable(spi, true);
-    
-    // SELECCIONAR CHIP SELECT
-    if (spi_set_csid(spi, csid) != SPI_FLAG_OK) {
-        printf("Error al establecer CSID\n");
-        return -1;
-    }
+        // Definimos al B-Sample como esclavo con GPIO_CS 0 y frecuencia 100 kbits/s
+        /** SPI **/
+        spi_slave_t idneo_slave = {
+            .csid = csid,
+            .csn_idle = 0, //1 por defecto y 15 en PREMO
+            .csn_lead = 0, //1 por defecto y 15 en PREMO
+            .csn_trail = 3, //1 por defecto y .cs_ena_posttrans = 3 en la ESP32
+            .data_mode = SPI_DATA_MODE_2, // Yo creo que es SPI_DATA_MODE_2
+            .full_cycle = false, //false porque creo que es 50% duty cycle y true en PREMO
+            .freq = IDNEO_SPI_SPEED
+        };
+
+        // Validamos el csid del slave
+        if (spi_validate_slave(idneo_slave) != SPI_CODE_OK) {
+            printf("Error: csid no válido\n");
+            return;
+        }
+
+        // Inicializamos SPI1 (HOST1)
+        spi_pynq = spi_init(IDNEO_SPI, idneo_slave); 
+
+        if (!spi_pynq.init) {
+            printf("Error al inicializar SPI\n");
+            return false;
+        }
+        gpio_write(GPIO_CS, true);
+
+        // Enable global interrupt for machine-level interrupts
+        CSR_SET_BITS(CSR_REG_MSTATUS, CSR_INTR_EN);
+        // Set mie.MEIE bit to one to enable machine-level fast spi_flash interrupt
+        const uint32_t mask = 1 << FIC_FLASH_MEIE;
+        CSR_SET_BITS(CSR_REG_MIE, mask);
+
+        printf("[SPI] SPI initialized successfully.\n");
     #endif
     // ======================================================
     
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    //vTaskDelay(500 / portTICK_PERIOD_MS);
 }
 
 // Función que ejecuta la tx/rx a través del buffer 
-spi_return_flags_e spi_transfer(uint8_t* sendbuf, uint8_t* recvbuf, size_t len, spi_dir_e direction) {
+spi_codes_e spi_transfer(uint8_t* sendbuf, uint8_t* recvbuf, size_t len, spi_dir_e direction) {
     // ======================================================
     // ESP32
     // ======================================================
@@ -196,44 +207,56 @@ spi_return_flags_e spi_transfer(uint8_t* sendbuf, uint8_t* recvbuf, size_t len, 
     // =======================================================
     #else
     
-    spi_return_flags_e result;
-
-    // Crear y configurar el comando SPI
-    spi_command_tr cmd = {
-        .len = len * sizeof(float),  // en bytes
-        .csaat = false,
-        .speed = SPI_SPEED_STANDARD,
-        .direction = SPI_DIR_BIDIR
-    };
-    uint32_t cmd_reg = spi_create_command(cmd);
-
-    // Esperar que esté listo
-    spi_wait_for_ready(spi_host1);
-
-    // Enviar el comando al dispositivo
-    spi_set_command(spi_host1, cmd_reg);
-
-   
-    // 4. TX (Escribir los datos a enviar)
-    if (direction == SPI_DIR_TX_ONLY || direction == SPI_DIR_BIDIR) {
-        for (int i = 0; i < len; i++) {
-            spi_write_word(spi_host1, ((uint32_t*)sendbuf)[i]);
+        // Validamos el bus spi antes de cualquier operación
+        if (spi_prepare_transfer(&spi_pynq) != SPI_CODE_OK) {
+            printf("Error setting transfer\n");
+            return;
         }
-    }
 
-    // 5. Esperar que se vacíe el FIFO de TX
-    if (direction == SPI_DIR_TX_ONLY || direction == SPI_DIR_BIDIR) {
-        spi_wait_for_tx_empty(spi_host1);
-    }
+        uint32_t length = len * 8;  // en bits
 
-    // 6. RX (Leer los datos recibidos)
-    if (direction == SPI_DIR_RX_ONLY || direction == SPI_DIR_BIDIR) {
-        for (int i = 0; i < len; i++) {
-            spi_read_word(spi_host1, (uint32_t*)&recvbuf[i]);
+        spi_codes_e code;
+
+        switch (direction) {
+            case SPI_DIR_TX_ONLY:
+                // code = spi_transmit(&spi_pynq, txbuf, byte_len);
+                code = spi_transmit(&spi_pynq, sendbuf, sizeof(sendbuf));
+                break;
+
+            case SPI_DIR_RX_ONLY:
+                //code = spi_receive(&spi_pynq, rxbuf, byte_len);
+                code = spi_receive(&spi_pynq, recvbuf, sizeof(recvbuf));
+                break;
+
+            case SPI_DIR_BIDIR:{
+
+                if (length == 0 || length % 4 != 0) {
+                    // Longitud inválida para palabras de 32 bits
+                    return SPI_CODE_IDX_INVAL;
+                }
+
+                // Buffers temporales alineados a 4 bytes
+                uint32_t tx_buf_aligned[length / 4];
+                uint32_t rx_buf_aligned[length / 4];
+
+                // Copiar datos TX a buffer alineado
+                memcpy(tx_buf_aligned, sendbuf, length);
+
+                code = spi_transceive(&spi_pynq, tx_buf_aligned, rx_buf_aligned, length);
+
+                // Copiar resultado RX al buffer de usuario
+                memcpy(recvbuf, rx_buf_aligned, length);
+                }
+                break;
+
+            default:
+                return SPI_CODE_IDX_INVAL; // Dirección no válida
         }
-    }
 
-    return SPI_FLAG_OK;
+        // Traduce el código de retorno del SDK a tus flags
+        //return (code == SPI_CODE_OK) ? SPI_CODE_OK : SPI_FLAG_ERROR;
+
+        return code;
     
     #endif
 

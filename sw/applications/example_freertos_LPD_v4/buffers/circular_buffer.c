@@ -75,9 +75,8 @@ void printCircularBuffer(CircularBuffer *buffer) {
         printf("CIR #%d: [", (buffer->head + i) % BUFFER_CIRC_SIZE);
         for (int j = 0; j < CIR_TAPS; j++) {
             // Imprime el CIR en formato float con 3 decimales
-            printf("%3d%+3dj ", buffer->data[index][j].real, buffer->data[index][j].imag);
-            printf("%3d%+3dj ", buffer->data[index][j].real, buffer->data[index][j].imag);
-            if (((j + 1) % 16 == 0) && (j != CIR_TAPS - 1)) {
+            printf("(%d, %d) ", buffer->data[index][j].real, buffer->data[index][j].imag);
+            if (((j + 1) % 8 == 0) && (j != CIR_TAPS - 1)) {
                  printf("\n\t");
             }
         }

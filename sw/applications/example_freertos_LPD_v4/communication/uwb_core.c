@@ -1,14 +1,18 @@
 #include "uwb_core.h"
 #include "uwb_commands.h"
 #include <stdbool.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/timers.h"
+#include "FreeRTOS.h"
+#include "timers.h"
 #include "gpio.h"
 #include "string.h"
 #include "circular_buffer.h"
 #include "task_control.h"
 #include "uwb_core.h"
 #include "uwb_api.h"
+#include "spi_interface.h"
+#include "gpio_interface.h"
+#include "Config.h"
+#include "sync.h"
 
 // ================================================================
 // ================================================================
@@ -23,12 +27,12 @@ void hard_reset(){
 
     printf("\n[HARD RESET] Triggering UWB reset...\n");
     vTaskDelay(pdMS_TO_TICKS(10));
-    // gpio_set_level(GPIO_RST_IO, 1);
+    // gpio_write(GPIO_RST_IO, 1);
     printf("\033[0;31m[INTERRUPCIÓN] RST_IO BAJA\033[0m\n");
-    gpio_set_level(GPIO_RST_IO, 0);
+    gpio_write(GPIO_RST_IO, 0);
     vTaskDelay(pdMS_TO_TICKS(10));
     printf("\033[0;31m[INTERRUPCIÓN] RST_IO SUBE\033[0m\n");
-    gpio_set_level(GPIO_RST_IO, 1);
+    gpio_write(GPIO_RST_IO, 1);
 
     if (!interrupt_processing_enabled) {
         printf("\n[HARD RESET] Interrupt processing is disabled. Enabling it now...\n");
@@ -50,7 +54,7 @@ bool send_uci_cmd_get_rsp(uint8_t *cmd_buffer, size_t cmd_len) {
    
     // Bajar CS para iniciar la transmisión 
     //printf("\033[0;31m[INTERRUPCIÓN] GPIO_CS BAJA\033[0m\n");
-    gpio_set_level(GPIO_CS, 0);
+    gpio_write(GPIO_CS, 0);
     vTaskDelay(10 / portTICK_PERIOD_MS);
     
     //printf("\tNivel del gpio RDY: %d\n", gpio_get_level(GPIO_RDY_IO));
@@ -91,36 +95,38 @@ bool send_uci_cmd_get_rsp(uint8_t *cmd_buffer, size_t cmd_len) {
 void gpio_monitor_task(void* arg) {
     uint32_t io_num;
     uint8_t recv_buffer[403] = {0};  // Buffer para recibir la respuesta del UWB
-    int level;
+    bool level;
     while(true) {
 
         if ((xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY))){ // && (acquisition_active || conf_uwb_active)){
             if (interrupt_processing_enabled){
                 //printf("ACQUISITION ACTIVE: %d, CONF UWB ACTIVE: %d\n", acquisition_active, conf_uwb_active);
-                level = gpio_get_level(io_num);
+                gpio_read(io_num, &level);
                 
                 const char* pin_name = (io_num == GPIO_CS) ? "CS" :
                                     (io_num == GPIO_RDY_IO) ? "RDY" : 
                                     (io_num == GPIO_RST_IO) ? "RST" :
                                     (io_num == GPIO_INT_IO) ? "INT" : "UNKNOWN";
 
-                // printf("\033[0;31m[INTERRUPCIÓN] GPIO_%s (%ld) %s\033[0m\n", pin_name, io_num,
-                //       level == 0 ? "BAJA" : "SUBE");
+                 printf("\033[0;31m[INTERRUPCIÓN] GPIO_%s (%ld) %s\033[0m\n", pin_name, io_num,
+                       level == 0 ? "BAJA" : "SUBE");
 
                 // Si es el GPIO_INT_IO, se llama a uwb_receive_message
                 if ((io_num == GPIO_INT_IO) && (interrupt_processing_enabled)){//) && (acquisition_active || conf_uwb_active)){
                     size_t len = 0;
-                    while ((gpio_get_level(GPIO_INT_IO) == 0) && (interrupt_processing_enabled)){// && (acquisition_active || conf_uwb_active)) {
+                    gpio_read(GPIO_INT_IO, &level);
+                    while ((level == 0) && (interrupt_processing_enabled)){// && (acquisition_active || conf_uwb_active)) {
                         // ==============================================================
                         // RECIBIR RESPUESTA DEL UWB
                         //printf("\nRecibiendo respuesta del UWB desde ISR...");
                         // ==============================================================
+                        gpio_read(GPIO_INT_IO, &level);
                         if (!receive_uci_message(recv_buffer,sizeof(recv_buffer), &len)) {
-                            gpio_set_level(GPIO_CS, 1);  // Asegurar que se libera CS
+                            gpio_write(GPIO_CS, true);  // Asegurar que se libera CS
                             break;
                         } 
-                    vTaskDelay(10 / portTICK_PERIOD_MS);
-                }
+                        vTaskDelay(10 / portTICK_PERIOD_MS);
+                    }
                 //    print_gpio_states();
                 }
             }
@@ -129,23 +135,31 @@ void gpio_monitor_task(void* arg) {
 }
 
 void print_gpio_states(){
+    bool level;
     printf("\033[0;32m\t\tChecando estado de los pines GPIO...\033[0m\n");
-    printf("\033[0;32m\t\tNivel del gpio INT: %d\033[0m\n", gpio_get_level(GPIO_INT_IO));
-    printf("\033[0;32m\t\tNivel del gpio RDY: %d\033[0m\n", gpio_get_level(GPIO_RDY_IO));
-    printf("\033[0;32m\t\tNivel del gpio CS: %d\033[0m\n", gpio_get_level(GPIO_CS));
-    printf("\033[0;32m\t\tNivel del gpio RST: %d\033[0m\n", gpio_get_level(GPIO_RST_IO));
+    gpio_read(GPIO_INT_IO, &level);
+    printf("\033[0;32m\t\tNivel del gpio INT: %d\033[0m\n", level);
+    gpio_read(GPIO_RDY_IO, &level);
+    printf("\033[0;32m\t\tNivel del gpio RDY: %d\033[0m\n", level);
+    gpio_read(GPIO_CS, &level);
+    printf("\033[0;32m\t\tNivel del gpio CS: %d\033[0m\n", level);
+    gpio_read(GPIO_RST_IO, &level);
+    printf("\033[0;32m\t\tNivel del gpio RST: %d\033[0m\n", level);
 }
 
-bool wait_for_gpio_low(gpio_num_t gpio, uint32_t timeout_ms) {
+bool wait_for_gpio_low(gpio_pin_number_t gpio, uint32_t timeout_ms) {
     TickType_t start = xTaskGetTickCount();
     TickType_t timeout_ticks = pdMS_TO_TICKS(timeout_ms);
-    if (gpio_get_level(gpio) == 1) {
+    bool level;
+    gpio_read(gpio, &level);
+    if (level == 1) {
         printf("\n\t[WAIT %s] Esperando a que %s para recibir mensaje...\n", gpio == GPIO_INT_IO ? "INT" : "RDY", gpio == GPIO_INT_IO ? "INT" : "RDY");
     }
     
     while ((xTaskGetTickCount() - start) < timeout_ticks) {
-        if (gpio_get_level(gpio) == 0) {
-            //printf("\t[WAIT] %s_GPIO está en LOW.\n", gpio == GPIO_INT_IO ? "INT" : "RDY");
+        gpio_read(gpio, &level);
+        if (level == 0) {
+            printf("\t[WAIT] %s_GPIO está en LOW.\n", gpio == GPIO_INT_IO ? "INT" : "RDY");
             return true;
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -161,18 +175,18 @@ bool wait_for_gpio_low(gpio_num_t gpio, uint32_t timeout_ms) {
 bool transmit_uci_command(uint8_t *cmd_buffer, size_t len) {
     printf("\n\t[SEND] Enviando comando UCI...\n");
      
-    if ((spi_transfer(cmd_buffer, NULL, len, SPI_DIR_TX_ONLY) != SPI_FLAG_OK))// Inicializa la transferencia SPI
+    if ((spi_transfer(cmd_buffer, NULL, len, SPI_DIR_TX_ONLY) != SPI_CODE_OK))// Inicializa la transferencia SPI
     {
         printf("Error en transferencia SPI.\n");
-        gpio_set_level(GPIO_CS, 1);
+        gpio_write(GPIO_CS, true);
         success = false;
         return false;
     } else {
         // Subir CS para terminar la transmisión
         vTaskDelay(5 / portTICK_PERIOD_MS);
-        gpio_set_level(GPIO_CS, 1);
+        gpio_write(GPIO_CS, true);
         printf("\tCommand sent successfully.\n");
-        //print_gpio_states();
+        print_gpio_states();
     }
     return true;
 }
@@ -182,10 +196,10 @@ bool transmit_uci_command(uint8_t *cmd_buffer, size_t len) {
 // ====================================================================
 bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len){
 
-    // printf("\n\t[RECV] Recibiendo respuesta de UWB...\n");
+    printf("\n\t[RECV] Recibiendo respuesta de UWB...\n");
     
     // Bajar CS para iniciar la transmisión
-    gpio_set_level(GPIO_CS, 0);
+    gpio_write(GPIO_CS, false);
     vTaskDelay(5 / portTICK_PERIOD_MS);
 
     // =============================================================
@@ -193,8 +207,8 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
     // Leer cabecera de 4 bytes
     // printf("\tLeyendo cabecera y payload length...\n");
     uint8_t header[4];
-    if (spi_transfer(NULL, header, 4, SPI_DIR_RX_ONLY) != SPI_FLAG_OK) {
-        gpio_set_level(GPIO_CS, 1);
+    if (spi_transfer(NULL, header, 4, SPI_DIR_RX_ONLY) != SPI_CODE_OK) {
+        gpio_write(GPIO_CS, true);
         return false;
     }
     // // Imprimir la cabecera recibida
@@ -209,7 +223,7 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
     UCIPacketStatus status = analyze_uci_header(header, 4, &hdr);
     if (status == UCI_PACKET_INVALID) {
         printf("\tCabecera inválida. Cancelando recepción.\n");
-        gpio_set_level(GPIO_CS, 1);
+        gpio_write(GPIO_CS, 1);
         return false;
     } 
     
@@ -223,8 +237,8 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
     size_t total_len = 4 + hdr.payload_len + 2; // 4 bytes de cabecera + payload + 2 bytes de CRC
     //printf("\tTamaño total del paquete: %zu bytes\n", total_len);
 
-    if (spi_transfer(NULL, recv_buffer + 4, hdr.payload_len + 2, SPI_DIR_RX_ONLY) != SPI_FLAG_OK) {
-        gpio_set_level(GPIO_CS, 1);
+    if (spi_transfer(NULL, recv_buffer + 4, hdr.payload_len + 2, SPI_DIR_RX_ONLY) != SPI_CODE_OK) {
+        gpio_write(GPIO_CS, true);
         return false;
     }
 
@@ -277,7 +291,7 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
 
     // Subir CS para finalizar la recepción
     //printf("\033[0;31m[INTERRUPCIÓN] GPIO_CS SUBE\033[0m\n");
-    gpio_set_level(GPIO_CS, 1);
+    gpio_write(GPIO_CS, true);
     vTaskDelay(10 / portTICK_PERIOD_MS);
     
     // Actualizar el tamaño del buffer de respuesta
@@ -439,19 +453,19 @@ typedef enum {
 
 void print_resp_status(uint8_t code) {
     switch ((resp_status_t)code) {
-        case STATUS_OK: printf("\t\t✓ STATUS_OK: Operación exitosa\n"); break;
-        case STATUS_REJECTED:  printf("\t\t✗ STATUS_REJECTED: Operación no permitida en el estado actual\n"); break;
-        case STATUS_FAILED: printf("\t\t✗ STATUS_FAILED: La operación falló\n"); break;
-        case STATUS_SYNTAX_ERROR: printf("\t\t✗ STATUS_SYNTAX_ERROR: Estructura de paquete inválida\n"); break;
-        case STATUS_INVALID_PARAM: printf("\t\t✗ STATUS_INVALID_PARAM: Parámetro válido pero valor incorrecto\n"); break;
-        case STATUS_INVALID_RANGE: printf("\t\t✗ STATUS_INVALID_RANGE: Valor fuera de rango\n"); break;
-        case STATUS_INVALID_MESSAGE_SIZE: printf("\t\t✗ STATUS_INVALID_MESSAGE_SIZE: Tamaño de mensaje incorrecto\n"); break;
-        case STATUS_UNKNOWN_GID: printf("\t\t✗ STATUS_UNKNOWN_GID: GID desconocido\n"); break;
-        case STATUS_UNKNOWN_OID: printf("\t\t✗ STATUS_UNKNOWN_OID: OID desconocido\n"); break;
-        case STATUS_READ_ONLY: printf("\t\t✗ STATUS_READ_ONLY: Campo de solo lectura\n"); break;
-        case STATUS_COMMAND_RETRY: printf("\t\t✗ STATUS_COMMAND_RETRY: Se requiere reintento del comando\n"); break;
-        case STATUS_CRC_ERROR: printf("\t\t✗ STATUS_CRC_ERROR: Error de CRC\n"); break;
-        default: printf("\t\t✗ Código desconocido o reservado: 0x%02X\n", code); break;
+        case STATUS_OK: printf("\t\tSTATUS_OK: Operación exitosa\n"); break;
+        case STATUS_REJECTED:  printf("\t\tSTATUS_REJECTED: Operación no permitida en el estado actual\n"); break;
+        case STATUS_FAILED: printf("\t\tSTATUS_FAILED: La operación falló\n"); break;
+        case STATUS_SYNTAX_ERROR: printf("\t\tSTATUS_SYNTAX_ERROR: Estructura de paquete inválida\n"); break;
+        case STATUS_INVALID_PARAM: printf("\t\tSTATUS_INVALID_PARAM: Parámetro válido pero valor incorrecto\n"); break;
+        case STATUS_INVALID_RANGE: printf("\t\tSTATUS_INVALID_RANGE: Valor fuera de rango\n"); break;
+        case STATUS_INVALID_MESSAGE_SIZE: printf("\t\tSTATUS_INVALID_MESSAGE_SIZE: Tamaño de mensaje incorrecto\n"); break;
+        case STATUS_UNKNOWN_GID: printf("\t\tSTATUS_UNKNOWN_GID: GID desconocido\n"); break;
+        case STATUS_UNKNOWN_OID: printf("\t\tSTATUS_UNKNOWN_OID: OID desconocido\n"); break;
+        case STATUS_READ_ONLY: printf("\t\tSTATUS_READ_ONLY: Campo de solo lectura\n"); break;
+        case STATUS_COMMAND_RETRY: printf("\t\tSTATUS_COMMAND_RETRY: Se requiere reintento del comando\n"); break;
+        case STATUS_CRC_ERROR: printf("\t\tSTATUS_CRC_ERROR: Error de CRC\n"); break;
+        default: printf("\t\tCódigo desconocido o reservado: 0x%02X\n", code); break;
     }
 }
 
@@ -496,28 +510,28 @@ typedef enum {
 void print_radar_status(uint8_t code) {
     switch ((radar_status_t)code) {
         case RX_Success: 
-            printf("\t\t✓ RX_SUCCESS_CIR_AVAILABLE: Successful reception and CIR available\n"); 
+            printf("\t\tRX_SUCCESS_CIR_AVAILABLE: Successful reception and CIR available\n"); 
             break;
         case TX_Success: 
-            printf("\t\t✓ TX_Success: Successful transmission\n"); 
+            printf("\t\tTX_Success: Successful transmission\n"); 
             break;
         case Calibration_Done: 
-            printf("\t\t✓ Calibration_Done: Calibration completed\n"); 
+            printf("\t\tCalibration_Done: Calibration completed\n"); 
             break;
         case Aborted: 
-            printf("\t\t✗ Aborted: Operation aborted\n"); 
+            printf("\t\tAborted: Operation aborted\n"); 
             break;
         case RX_error: 
-            printf("\t\t✗ RX_error: Reception error\n"); 
+            printf("\t\tRX_error: Reception error\n"); 
             break;
         case TX_error: 
-            printf("\t\t✗ TX_error: Transmission error\n"); 
+            printf("\t\tTX_error: Transmission error\n"); 
             break;
         case General_Baseband_error: 
-            printf("\t\t✗ General_Baseband_error: General baseband error\n"); 
+            printf("\t\tGeneral_Baseband_error: General baseband error\n"); 
             break;
         default: 
-            printf("\t\t✗ Unknown or reserved code: 0x%02X\n", code); 
+            printf("\t\tUnknown or reserved code: 0x%02X\n", code); 
             break;
     }
 }

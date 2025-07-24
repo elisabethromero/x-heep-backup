@@ -1,9 +1,9 @@
 #ifndef SYNC_H
 #define SYNC_H
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "freertos/queue.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include "queue.h"
 
 // External handles
 extern SemaphoreHandle_t data_sampling_ready_sem;

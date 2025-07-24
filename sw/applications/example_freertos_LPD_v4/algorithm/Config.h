@@ -18,6 +18,25 @@ typedef enum
 } BOOL;
 */
 
+//Definiciones de SPI
+#define IDNEO_SPI         SPI_IDX_HOST //SPI_IDX_HOST_2
+#define IDNEO_SPI_SPEED   1000000 //He puesto 100kbits/s (100000) lo mismo que PREMO. Antes habia 1000000, que es lo que pone Miguel Ángel
+
+// Definiciones de pines
+#define GPIO_RST_IO 10 
+#define GPIO_RDY_IO  8
+#define GPIO_INT_IO  9
+#define GPIO_CS 6 // Chip select del SPI
+
+#define GPIO_INTR_RDY GPIO_INTR_8 // GPIO para RDY
+#define GPIO_INTR_INT GPIO_INTR_9 // GPIO para interrupciones
+#define GPIO_INTR_RST GPIO_INTR_10 // GPIO para RST
+
+#define FIC_SPI_HOST_MEIE  20               // SPI Host 1 fast interrupt bit enable
+#define CSR_INTR_EN        0x08             // CPU Global interrupt enable
+#define FIC_FLASH_MEIE     21               // SPI Flash fast interrupt bit enable
+
+
 typedef unsigned int                      UINT16;
 typedef unsigned long                     UINT32;
 typedef unsigned char                     UINT8;
@@ -27,22 +46,6 @@ typedef char                              INT8;
 
 typedef float                             FP32;
 typedef double                            FP64;
-
-#if !defined(__stdint_h) && !defined(_STDINT_H)
-typedef unsigned long                     uint40_t;
-typedef unsigned int                      uint32_t;
-typedef unsigned short                    uint16_t;
-typedef unsigned char                     uint8_t;
-typedef long                              int40_t;
-typedef int                               int32_t;
-typedef short                             int16_t;
-//typedef char                              int8_t;
-
-typedef float                             fp32_t;
-typedef double                            fp64_t;
-#else
-#include <stdint.h>
-#endif  // #ifndef __stdint_h
 
 typedef long long                         int64_t;
 

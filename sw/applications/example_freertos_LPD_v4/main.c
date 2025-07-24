@@ -41,6 +41,7 @@
 #include "handlers_tasks.h"
 #include "uwb_commands.h"
 #include "config.h"
+#include "Config.h"
 
 //Definición de Buffers
 CircularBuffer circ_buffer;
@@ -313,7 +314,7 @@ void printSplashScreen(void) {
 
 
 // En esta función principal se inicializan los semáforos, las colas y los buffers y se crean las tareas
-void app_main()
+void main()
 {   
     start_time = xTaskGetTickCount();  // Tiempo de arranque en ticks
 

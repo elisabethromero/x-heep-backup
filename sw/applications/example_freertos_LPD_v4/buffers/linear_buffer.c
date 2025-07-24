@@ -33,7 +33,7 @@ void printLinearBuffer(LinearBuffer *buffer) {
         printf("[LINEAR BUFFER] El buffer está vacío.\n");
         return;
     }
-
+    /*
     printf("\n[LINEAR BUFFER] Contenido actual (%d CIRs - %d TAPs):\n", buffer->num_cirs, buffer->num_taps);
     for (int i = 0; i < buffer->num_cirs; i++) {
         printf("CIR #%d: [", i);
@@ -46,6 +46,7 @@ void printLinearBuffer(LinearBuffer *buffer) {
         }
         printf("]\n");
     }
+        */
     printf("\n");
 }
 
