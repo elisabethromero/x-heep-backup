@@ -145,6 +145,9 @@ void freertos_risc_v_application_interrupt_handler(void)
         case GPIO_INTR_8:
             gpio_isr_handler_rdy();
             break;
+        case GPIO_INTR_10:
+            gpio_isr_handler_rst();
+            break;
         default:
             printf("Unhandled IRQ ID: %d\n", irq_id);
             break;
