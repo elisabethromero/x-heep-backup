@@ -62,7 +62,7 @@ set_property -dict {PACKAGE_PIN T14 IOSTANDARD LVCMOS33} [get_ports {gpio_io[0]}
 set_property -dict {PACKAGE_PIN U10 IOSTANDARD LVCMOS33} [get_ports {gpio_io[1]}] ; # rpi_gpio_tri_io[11]
 set_property -dict {PACKAGE_PIN T5 IOSTANDARD LVCMOS33 PULLUP true} [get_ports {gpio_io[2]}] ; # rpi_gpio_tri_io[5]
 set_property -dict {PACKAGE_PIN V18 IOSTANDARD LVCMOS33} [get_ports {gpio_io[3]}] ; # rpi_gpio_tri_io[16]
-set_property -dict {PACKAGE_PIN U17 IOSTANDARD LVCMOS33} [get_ports {gpio_io[4]}] ; # rpi_gpio_tri_io[7]
+set_property -dict {PACKAGE_PIN W8 IOSTANDARD LVCMOS33} [get_ports {gpio_io[4]}] ; # rpi_gpio_tri_io[7]
 set_property -dict {PACKAGE_PIN W9 IOSTANDARD LVCMOS33} [get_ports {gpio_io[5]}] ; # arduino_gpio_tri_io[1]
 set_property -dict {PACKAGE_PIN U13 IOSTANDARD LVCMOS33} [get_ports {gpio_io[6]}] ; # rpi_gpio_tri_io[3]
 set_property -dict {PACKAGE_PIN Y8 IOSTANDARD LVCMOS33} [get_ports {gpio_io[7]}] ; # rpi_gpio_tri_io[1]

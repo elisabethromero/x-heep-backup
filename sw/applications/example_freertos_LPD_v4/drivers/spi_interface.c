@@ -96,7 +96,7 @@ void spi_initialization() {
             .csn_idle = 0, //1 por defecto y 15 en PREMO
             .csn_lead = 0, //1 por defecto y 15 en PREMO
             .csn_trail = 3, //1 por defecto y .cs_ena_posttrans = 3 en la ESP32
-            .data_mode = SPI_DATA_MODE_2, // Yo creo que es SPI_DATA_MODE_2
+            .data_mode = SPI_DATA_MODE_0, // Yo creo que es SPI_DATA_MODE_2 en vez de 0
             .full_cycle = false, //false porque creo que es 50% duty cycle y true en PREMO
             .freq = IDNEO_SPI_SPEED
         };
@@ -119,8 +119,10 @@ void spi_initialization() {
         // Enable global interrupt for machine-level interrupts
         CSR_SET_BITS(CSR_REG_MSTATUS, CSR_INTR_EN);
         // Set mie.MEIE bit to one to enable machine-level fast spi_flash interrupt
-        const uint32_t mask = 1 << FIC_FLASH_MEIE;
-        CSR_SET_BITS(CSR_REG_MIE, mask);
+        const uint32_t mask_spi_flash = 1 << FIC_FLASH_MEIE; //FIC_SPI_HOST_MEIE
+        const uint32_t mask_spi_host = 1 << FIC_SPI_HOST_MEIE; 
+        CSR_SET_BITS(CSR_REG_MIE, mask_spi_flash);
+        //CSR_SET_BITS(CSR_REG_MIE, mask_spi_host);
 
         printf("[SPI] SPI initialized successfully.\n");
     #endif
@@ -219,13 +221,13 @@ spi_codes_e spi_transfer(uint8_t* sendbuf, uint8_t* recvbuf, size_t len, spi_dir
 
         switch (direction) {
             case SPI_DIR_TX_ONLY:
-                // code = spi_transmit(&spi_pynq, txbuf, byte_len);
-                code = spi_transmit(&spi_pynq, sendbuf, sizeof(sendbuf));
+                // code = spi_transmit(&spi_pynq, txbuf, sizeof(sendbuf));
+                code = spi_transmit(&spi_pynq, sendbuf, length);
                 break;
 
             case SPI_DIR_RX_ONLY:
-                //code = spi_receive(&spi_pynq, rxbuf, byte_len);
-                code = spi_receive(&spi_pynq, recvbuf, sizeof(recvbuf));
+                //code = spi_receive(&spi_pynq, rxbuf, sizeof(recvbuf));
+                code = spi_receive(&spi_pynq, recvbuf, length);
                 break;
 
             case SPI_DIR_BIDIR:{

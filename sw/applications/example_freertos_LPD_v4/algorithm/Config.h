@@ -30,7 +30,6 @@ typedef enum
 
 #define GPIO_INTR_RDY GPIO_INTR_8 // GPIO para RDY
 #define GPIO_INTR_INT GPIO_INTR_9 // GPIO para interrupciones
-#define GPIO_INTR_RST GPIO_INTR_10 // GPIO para RST
 
 #define FIC_SPI_HOST_MEIE  20               // SPI Host 1 fast interrupt bit enable
 #define CSR_INTR_EN        0x08             // CPU Global interrupt enable

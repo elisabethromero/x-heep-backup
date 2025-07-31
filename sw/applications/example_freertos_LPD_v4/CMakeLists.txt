@@ -32,7 +32,6 @@ INCLUDE_DIRECTORIES(
         ${CMAKE_CURRENT_SOURCE_DIR}/communication
         ${CMAKE_CURRENT_SOURCE_DIR}/tasks
         ${CMAKE_CURRENT_SOURCE_DIR}/sync
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib/hal
         ${CMAKE_CURRENT_SOURCE_DIR}/config
         ${CMAKE_CURRENT_SOURCE_DIR}/testing_data
 )

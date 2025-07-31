@@ -57,9 +57,14 @@ bool send_uci_cmd_get_rsp(uint8_t *cmd_buffer, size_t cmd_len) {
     gpio_write(GPIO_CS, 0);
     vTaskDelay(10 / portTICK_PERIOD_MS);
     
-    //printf("\tNivel del gpio RDY: %d\n", gpio_get_level(GPIO_RDY_IO));
+    bool level;
+    gpio_read(GPIO_RDY_IO, &level);
+    printf("\tNivel del gpio RDY: %d\n", level);
+    //print_gpio_states();
     if (!wait_for_gpio_low(GPIO_RDY_IO, RDY_TIMEOUT_MS)) return false;
-    // printf("\tNivel del gpio RDY: %d\n", gpio_get_level(GPIO_RDY_IO));
+    gpio_read(GPIO_RDY_IO, &level);
+    printf("\tNivel del gpio RDY: %d\n", level);
+    //print_gpio_states();
 
     // ==============================================================
     // ENVÍO DEL COMANDO UCI
@@ -86,8 +91,6 @@ bool send_uci_cmd_get_rsp(uint8_t *cmd_buffer, size_t cmd_len) {
     //     parse_uwb_response(recv_buffer, sizeof(recv_buffer));  
     //     vTaskDelay(10 / portTICK_PERIOD_MS);
     // }
-
-    //print_gpio_states();
     
     return true;
 }
@@ -108,12 +111,13 @@ void gpio_monitor_task(void* arg) {
                                     (io_num == GPIO_RST_IO) ? "RST" :
                                     (io_num == GPIO_INT_IO) ? "INT" : "UNKNOWN";
 
-                 printf("\033[0;31m[INTERRUPCIÓN] GPIO_%s (%ld) %s\033[0m\n", pin_name, io_num,
-                       level == 0 ? "BAJA" : "SUBE");
+                //printf("\033[0;31m[INTERRUPCIÓN] GPIO_%s (%ld) %s\033[0m\n", pin_name, io_num,
+                //       level == 0 ? "BAJA" : "SUBE");
 
                 // Si es el GPIO_INT_IO, se llama a uwb_receive_message
                 if ((io_num == GPIO_INT_IO) && (interrupt_processing_enabled)){//) && (acquisition_active || conf_uwb_active)){
                     size_t len = 0;
+                    printf("Interrupción PIN INT\n");
                     gpio_read(GPIO_INT_IO, &level);
                     while ((level == 0) && (interrupt_processing_enabled)){// && (acquisition_active || conf_uwb_active)) {
                         // ==============================================================
@@ -127,7 +131,9 @@ void gpio_monitor_task(void* arg) {
                         } 
                         vTaskDelay(10 / portTICK_PERIOD_MS);
                     }
-                //    print_gpio_states();
+                // print_gpio_states();
+                } else if (io_num == GPIO_RDY_IO){
+                    printf("Interrupción PIN RDY\n");
                 }
             }
         }
@@ -164,6 +170,7 @@ bool wait_for_gpio_low(gpio_pin_number_t gpio, uint32_t timeout_ms) {
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
+    //print_gpio_states();
     printf("\tTimeout esperando %s, no se recibió mensaje.\n", gpio == GPIO_INT_IO ? "INT" : "RDY");
 
     return false;
@@ -211,6 +218,8 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
         gpio_write(GPIO_CS, true);
         return false;
     }
+
+    //print_gpio_states();
     // // Imprimir la cabecera recibida
     // printf("\tCabecera recibida: ");
     // for (size_t i = 0; i < 4; i++) {

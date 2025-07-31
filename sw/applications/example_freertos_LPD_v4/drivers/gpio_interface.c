@@ -22,7 +22,6 @@ QueueHandle_t rdy_evt_queue = NULL;
 
 volatile uint8_t gpio_intr_flag_int = 0;
 volatile uint8_t gpio_intr_flag_rdy = 0;
-volatile uint8_t gpio_intr_flag_rst = 0;
 
 // Función de inicialización de GPIOs y colas de eventos para interrupciones
 void gpio_init(){
@@ -73,10 +72,7 @@ void gpio_init(){
 
     // Configurar pin RST como salida y establecerlo en alto por defecto
     rst_conf.pin = GPIO_RST_IO;
-    rst_conf.mode = GpioModeIn;
-    rst_conf.en_input_sampling = true;
-    rst_conf.en_intr = true;
-    rst_conf.intr_type = GpioIntrEdgeRisingFalling;
+    rst_conf.mode = GpioModeOutPushPull;
     gpio_res = gpio_config(rst_conf);
     if (gpio_res != GpioOk) {
         printf("Failed to configure GPIO at pin %d\n", GPIO_RST_IO);
@@ -94,15 +90,13 @@ void gpio_init(){
     } 
     // if(!rdy_evt_queue) { //     rdy_evt_queue = xQueueCreate(10, sizeof(uint32_t)); // }
 
-    //gpio_write(GPIO_CS, false);
+    gpio_write(GPIO_CS, false);
 
     gpio_assign_irq_handler(GPIO_INTR_INT, &gpio_isr_handler_int);
     gpio_assign_irq_handler(GPIO_INTR_RDY, &gpio_isr_handler_rdy);
-    gpio_assign_irq_handler(GPIO_INTR_RST, &gpio_isr_handler_rst);
 
     plic_assign_external_irq_handler(GPIO_INTR_INT, &gpio_isr_handler_int);
     plic_assign_external_irq_handler(GPIO_INTR_RDY, &gpio_isr_handler_rdy);
-    plic_assign_external_irq_handler(GPIO_INTR_RST, &gpio_isr_handler_rst);
 
     printf("GPIO interrupt system initialized successfully.\n");
 
@@ -130,22 +124,6 @@ void gpio_isr_handler_rdy() {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     uint32_t io_num = GPIO_RDY_IO;
     gpio_intr_flag_rdy = 1;
-    if(acquisition_active || conf_uwb_active || interrupt_processing_enabled) {
-        if (gpio_evt_queue != NULL) {
-        xQueueSendFromISR(gpio_evt_queue, &io_num, &xHigherPriorityTaskWoken);
-        }
-    }
-    //printf("Interrupt received\n"); // Totalmente prohibido imprimir en una ISR
-
-    // Para hacer un cambio de contexto inmediato si es necesario
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-}
-
-// Manejador de interrupciones
-void gpio_isr_handler_rst() {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    uint32_t io_num = GPIO_RST_IO;
-    gpio_intr_flag_rst = 1;
     if(acquisition_active || conf_uwb_active || interrupt_processing_enabled) {
         if (gpio_evt_queue != NULL) {
         xQueueSendFromISR(gpio_evt_queue, &io_num, &xHigherPriorityTaskWoken);

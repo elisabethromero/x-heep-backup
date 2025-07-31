@@ -145,9 +145,6 @@ void freertos_risc_v_application_interrupt_handler(void)
         case GPIO_INTR_8:
             gpio_isr_handler_rdy();
             break;
-        case GPIO_INTR_10:
-            gpio_isr_handler_rst();
-            break;
         default:
             printf("Unhandled IRQ ID: %d\n", irq_id);
             break;
@@ -291,13 +288,14 @@ void system_init(void)
 
     // Enable interrupt on processor side
     // Enable global interrupt for machine-level interrupts
-    CSR_SET_BITS(CSR_REG_MSTATUS, 0x08); //CSR_SET_BITS(CSR_REG_MSTATUS, 0x8);
+    CSR_SET_BITS(CSR_REG_MSTATUS, 0x8); //CSR_SET_BITS(CSR_REG_MSTATUS, 0x8);
 
     // Set mie.MEIE bit to one to enable machine-level external interrupts
-    uint32_t mask = 1 << 7; // Enable timer interrupt
-    //uint32_t mask = 1 << 11; // Enable machine external interrupts
+    uint32_t mask_timer = 1 << 7; // Enable timer interrupt
+    uint32_t mask_machine = 1 << 11; // Enable machine external interrupts
     //uint32_t mask = 1 << 20; // fast interrupt - spi
-    CSR_SET_BITS(CSR_REG_MIE, mask);
+    CSR_SET_BITS(CSR_REG_MIE, mask_timer);
+    CSR_SET_BITS(CSR_REG_MIE, mask_machine);
 
     configASSERT(rv_timer_irq_enable(&timer_0_1, 0, 0, kRvTimerEnabled) == kRvTimerOk);
 	configASSERT(rv_timer_counter_set_enabled(&timer_0_1, 0, kRvTimerEnabled) == kRvTimerOk);
