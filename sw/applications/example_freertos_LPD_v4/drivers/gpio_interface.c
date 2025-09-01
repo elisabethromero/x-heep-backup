@@ -98,6 +98,8 @@ void gpio_init(){
     plic_assign_external_irq_handler(GPIO_INTR_INT, &gpio_isr_handler_int);
     plic_assign_external_irq_handler(GPIO_INTR_RDY, &gpio_isr_handler_rdy);
 
+    print_gpio_states();
+
     printf("GPIO interrupt system initialized successfully.\n");
 
     //vTaskDelay(500 / portTICK_PERIOD_MS);

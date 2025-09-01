@@ -47,7 +47,7 @@ esp_err_t ret;
 
 spi_t spi_pynq;
 //[EMRL] Chip select
-uint32_t csid = 0;
+uint32_t csid = 1;
 
 
 #endif
@@ -93,11 +93,11 @@ void spi_initialization() {
         /** SPI **/
         spi_slave_t idneo_slave = {
             .csid = csid,
-            .csn_idle = 0, //1 por defecto y 15 en PREMO
-            .csn_lead = 0, //1 por defecto y 15 en PREMO
-            .csn_trail = 3, //1 por defecto y .cs_ena_posttrans = 3 en la ESP32
+            .csn_idle = 15, //15 por defecto
+            .csn_lead = 15, //15 por defecto
+            .csn_trail = 15, //15 por defecto y .cs_ena_posttrans = 3 en la ESP32
             .data_mode = SPI_DATA_MODE_0, // Yo creo que es SPI_DATA_MODE_2 en vez de 0
-            .full_cycle = false, //false porque creo que es 50% duty cycle y true en PREMO
+            .full_cycle = true, 
             .freq = IDNEO_SPI_SPEED
         };
 
@@ -114,15 +114,22 @@ void spi_initialization() {
             printf("Error al inicializar SPI\n");
             return false;
         }
-        gpio_write(GPIO_CS, true);
+        gpio_write(GPIO_CS, true); 
 
         // Enable global interrupt for machine-level interrupts
-        CSR_SET_BITS(CSR_REG_MSTATUS, CSR_INTR_EN);
+        //CSR_SET_BITS(CSR_REG_MSTATUS, CSR_INTR_EN);
         // Set mie.MEIE bit to one to enable machine-level fast spi_flash interrupt
-        const uint32_t mask_spi_flash = 1 << FIC_FLASH_MEIE; //FIC_SPI_HOST_MEIE
-        const uint32_t mask_spi_host = 1 << FIC_SPI_HOST_MEIE; 
-        CSR_SET_BITS(CSR_REG_MIE, mask_spi_flash);
+        //const uint32_t mask_spi_flash = 1 << FIC_FLASH_MEIE; //FIC_SPI_HOST_MEIE
+        //const uint32_t mask_spi_host = 1 << FIC_SPI_HOST_MEIE; 
+        //CSR_SET_BITS(CSR_REG_MIE, mask_spi_flash);
         //CSR_SET_BITS(CSR_REG_MIE, mask_spi_host);
+
+        spi_state_e state = spi_get_state(&spi_pynq);
+        if (state != SPI_STATE_INIT) {
+            printf("Error: SPI not initialized properly\n");
+            printf("Problema en la SPI: %d\n", state);
+            return;
+        }
 
         printf("[SPI] SPI initialized successfully.\n");
     #endif
@@ -257,6 +264,14 @@ spi_codes_e spi_transfer(uint8_t* sendbuf, uint8_t* recvbuf, size_t len, spi_dir
 
         // Traduce el código de retorno del SDK a tus flags
         //return (code == SPI_CODE_OK) ? SPI_CODE_OK : SPI_FLAG_ERROR;
+
+        spi_state_e state = spi_get_state(&spi_pynq);
+        if (state != SPI_STATE_DONE) {
+            printf("Problema en la SPI: %d\n", state);
+            //return;
+        } else {
+            printf("SPI successfully executed a transaction\n");
+        }
 
         return code;
     

@@ -20,7 +20,7 @@ typedef enum
 
 //Definiciones de SPI
 #define IDNEO_SPI         SPI_IDX_HOST //SPI_IDX_HOST_2
-#define IDNEO_SPI_SPEED   1000000 //He puesto 100kbits/s (100000) lo mismo que PREMO. Antes habia 1000000, que es lo que pone Miguel Ángel
+#define IDNEO_SPI_SPEED   100000 //He puesto 100kbits/s (100000) lo mismo que PREMO. Antes habia 1000000, que es lo que pone Miguel Ángel
 
 // Definiciones de pines
 #define GPIO_RST_IO 10 

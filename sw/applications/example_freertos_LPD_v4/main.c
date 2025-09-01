@@ -293,9 +293,15 @@ void system_init(void)
     // Set mie.MEIE bit to one to enable machine-level external interrupts
     uint32_t mask_timer = 1 << 7; // Enable timer interrupt
     uint32_t mask_machine = 1 << 11; // Enable machine external interrupts
-    //uint32_t mask = 1 << 20; // fast interrupt - spi
+    //uint32_t mask_ext_int = 1 << 31; // Enable fast interrupt - spi
+    uint32_t mask_spi_host = 1 << 20; // fast interrupt - spi
+    uint32_t mask_spi_flash = 1 << 21; // fast interrupt - spi flash
     CSR_SET_BITS(CSR_REG_MIE, mask_timer);
     CSR_SET_BITS(CSR_REG_MIE, mask_machine);
+    CSR_SET_BITS(CSR_REG_MIE, mask_spi_flash);
+
+    // Enable the external interrupt at fast interrupt controller level
+    enable_fast_interrupt(4, true);
 
     configASSERT(rv_timer_irq_enable(&timer_0_1, 0, 0, kRvTimerEnabled) == kRvTimerOk);
 	configASSERT(rv_timer_counter_set_enabled(&timer_0_1, 0, kRvTimerEnabled) == kRvTimerOk);
@@ -359,6 +365,8 @@ void main()
 
     xTaskCreate(task_data_acquisition, "Data Acquisition", 4096, NULL, 2, &acquisition_task_handle);
     xTaskCreate(task_algorithm_execution, "Algorithm Execution", 8192, NULL, 2, &algorithm_task_handle);
+
+    printf("Free heap after task creation: %d bytes\n", xPortGetFreeHeapSize());
 
     //En FreeRTOS para PYNQ-Z2 se deberá iniciar manualmente el scheduler
     vTaskStartScheduler();
