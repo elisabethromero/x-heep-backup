@@ -32,6 +32,7 @@ void gpio_init(){
     gpio_cfg_t rdy_conf = {0};
     gpio_cfg_t cs_conf = {0};
     gpio_cfg_t rst_conf = {0};
+    gpio_cfg_t prueba_conf = {0};
 
     // Configurar GPIOs de entrada
     int_conf.pin = GPIO_INT_IO;
@@ -61,7 +62,8 @@ void gpio_init(){
 
     // Configurar GPIOs de salida
     cs_conf.pin = GPIO_CS;
-    cs_conf.mode = GpioModeOutPushPull;
+    //cs_conf.mode = GpioModeOutPushPull;
+    cs_conf.mode = GpioModeoutOpenDrain1;
     // gpio_config(&io_conf);
     gpio_res = gpio_config(cs_conf);
     if (gpio_res != GpioOk) {
@@ -78,8 +80,17 @@ void gpio_init(){
         printf("Failed to configure GPIO at pin %d\n", GPIO_RST_IO);
         return -1;
     }
-    
+
     gpio_write(GPIO_RST_IO, true); // Establecer nivel alto por defecto
+
+    // Configurar pin RST como salida y establecerlo en alto por defecto
+    prueba_conf.pin = GPIO_PRUEBA;
+    prueba_conf.mode = GpioModeOutPushPull;
+    gpio_res = gpio_config(prueba_conf);
+    if (gpio_res != GpioOk) {
+        printf("Failed to configure GPIO at pin %d\n", GPIO_PRUEBA);
+        return -1;
+    }
 
     // Crear cola de eventos
     if(!gpio_evt_queue) {
@@ -90,7 +101,7 @@ void gpio_init(){
     } 
     // if(!rdy_evt_queue) { //     rdy_evt_queue = xQueueCreate(10, sizeof(uint32_t)); // }
 
-    gpio_write(GPIO_CS, false);
+    //gpio_write(GPIO_CS, false);
 
     gpio_assign_irq_handler(GPIO_INTR_INT, &gpio_isr_handler_int);
     gpio_assign_irq_handler(GPIO_INTR_RDY, &gpio_isr_handler_rdy);

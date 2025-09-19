@@ -27,6 +27,7 @@ typedef enum
 #define GPIO_RDY_IO  8
 #define GPIO_INT_IO  9
 #define GPIO_CS 6 // Chip select del SPI
+#define GPIO_PRUEBA 3 // Pin de prueba
 
 #define GPIO_INTR_RDY GPIO_INTR_8 // GPIO para RDY
 #define GPIO_INTR_INT GPIO_INTR_9 // GPIO para interrupciones

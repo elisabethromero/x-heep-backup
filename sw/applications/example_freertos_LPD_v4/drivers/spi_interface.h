@@ -3,6 +3,7 @@
 
 #include "spi_host.h" 
 #include "spi_sdk.h"
+#include "spi_risccom.h"
 #include "Config.h"
 // =========================================================
 // ESP32

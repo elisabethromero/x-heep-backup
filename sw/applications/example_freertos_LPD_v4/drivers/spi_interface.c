@@ -38,7 +38,7 @@ spi_device_interface_config_t devcfg = {
 //Manejador del dispositivo SPI
 spi_device_handle_t handle;
 
-esp_err_t ret;
+
 
 // ==========================================================
 // PYNQ-Z2
@@ -48,6 +48,8 @@ esp_err_t ret;
 spi_t spi_pynq;
 //[EMRL] Chip select
 uint32_t csid = 1;
+
+bool ret;
 
 
 #endif
@@ -87,51 +89,18 @@ void spi_initialization() {
     // PYNQ-Z2
     // =======================================================
     #else
-        printf("\n>> Initializing SPI bus...\n");
-
-        // Definimos al B-Sample como esclavo con GPIO_CS 0 y frecuencia 100 kbits/s
-        /** SPI **/
-        spi_slave_t idneo_slave = {
-            .csid = csid,
-            .csn_idle = 15, //15 por defecto
-            .csn_lead = 15, //15 por defecto
-            .csn_trail = 15, //15 por defecto y .cs_ena_posttrans = 3 en la ESP32
-            .data_mode = SPI_DATA_MODE_0, // Yo creo que es SPI_DATA_MODE_2 en vez de 0
-            .full_cycle = true, 
-            .freq = IDNEO_SPI_SPEED
-        };
-
-        // Validamos el csid del slave
-        if (spi_validate_slave(idneo_slave) != SPI_CODE_OK) {
-            printf("Error: csid no válido\n");
+        printf("SPI communication started.\r\n");
+        ret = riscom_platform_init();
+        if (ret)
+        {
+            printf("SPI initialization correct.\r\n");
+        }
+        else
+        {
+            printf("SPI initialization error.\r\n");
             return;
         }
 
-        // Inicializamos SPI1 (HOST1)
-        spi_pynq = spi_init(IDNEO_SPI, idneo_slave); 
-
-        if (!spi_pynq.init) {
-            printf("Error al inicializar SPI\n");
-            return false;
-        }
-        gpio_write(GPIO_CS, true); 
-
-        // Enable global interrupt for machine-level interrupts
-        //CSR_SET_BITS(CSR_REG_MSTATUS, CSR_INTR_EN);
-        // Set mie.MEIE bit to one to enable machine-level fast spi_flash interrupt
-        //const uint32_t mask_spi_flash = 1 << FIC_FLASH_MEIE; //FIC_SPI_HOST_MEIE
-        //const uint32_t mask_spi_host = 1 << FIC_SPI_HOST_MEIE; 
-        //CSR_SET_BITS(CSR_REG_MIE, mask_spi_flash);
-        //CSR_SET_BITS(CSR_REG_MIE, mask_spi_host);
-
-        spi_state_e state = spi_get_state(&spi_pynq);
-        if (state != SPI_STATE_INIT) {
-            printf("Error: SPI not initialized properly\n");
-            printf("Problema en la SPI: %d\n", state);
-            return;
-        }
-
-        printf("[SPI] SPI initialized successfully.\n");
     #endif
     // ======================================================
     
@@ -215,63 +184,63 @@ spi_codes_e spi_transfer(uint8_t* sendbuf, uint8_t* recvbuf, size_t len, spi_dir
     // PYNQ-Z2
     // =======================================================
     #else
-    
-        // Validamos el bus spi antes de cualquier operación
-        if (spi_prepare_transfer(&spi_pynq) != SPI_CODE_OK) {
-            printf("Error setting transfer\n");
-            return;
-        }
-
-        uint32_t length = len * 8;  // en bits
 
         spi_codes_e code;
 
+        
         switch (direction) {
             case SPI_DIR_TX_ONLY:
-                // code = spi_transmit(&spi_pynq, txbuf, sizeof(sendbuf));
-                code = spi_transmit(&spi_pynq, sendbuf, length);
-                break;
+                if (riscom_platform_spi_transmit(sendbuf, (uint32_t)len)) {
+                    printf("Código enviado por maestro SPI: ");
+                    for (int i = 0; i < len; i++) {
+                        printf("%02X ", sendbuf[i]);
+                    }
+                    printf("\n");
+                    code == SPI_CODE_OK;
+                } else {
+                    printf("Error de transmisión.\n");
+                }
+                
+            break;
 
             case SPI_DIR_RX_ONLY:
-                //code = spi_receive(&spi_pynq, rxbuf, sizeof(recvbuf));
-                code = spi_receive(&spi_pynq, recvbuf, length);
-                break;
+                
+                if (riscom_platform_spi_receive(recvbuf, (uint32_t)len)) {
+                    printf("Datos recibidos del esclavo SPI: ");
+                    for (int i = 0; i < len; i++) {
+                        printf("%02X ", recvbuf[i]);
+                    }
+                    printf("\n");
+                    code == SPI_CODE_OK;
+                } else {
+                    printf("Error de recepción.\n");
+                }
+            break;
 
             case SPI_DIR_BIDIR:{
-
-                if (length == 0 || length % 4 != 0) {
-                    // Longitud inválida para palabras de 32 bits
-                    return SPI_CODE_IDX_INVAL;
-                }
-
-                // Buffers temporales alineados a 4 bytes
-                uint32_t tx_buf_aligned[length / 4];
-                uint32_t rx_buf_aligned[length / 4];
-
-                // Copiar datos TX a buffer alineado
-                memcpy(tx_buf_aligned, sendbuf, length);
-
-                code = spi_transceive(&spi_pynq, tx_buf_aligned, rx_buf_aligned, length);
-
-                // Copiar resultado RX al buffer de usuario
-                memcpy(recvbuf, rx_buf_aligned, length);
+                if (riscom_platform_spi_transceive(sendbuf, recvbuf, 16)) {
+                    printf("Datos recibidos del esclavo SPI: ");
+                    for (int i = 0; i < len; ++i) {
+                        printf("%02X ", recvbuf[i]);
+                    }
+                    printf("\n");
+                    printf("Código enviado por maestro SPI: ");
+                    for (int i = 0; i < len; i++) {
+                        printf("%02X ", sendbuf[i]);
+                    }
+                    printf("\n");
+                    code == SPI_CODE_OK;
+                } else {
+                    printf("Fallo en la transacción.\n");
                 }
                 break;
 
             default:
                 return SPI_CODE_IDX_INVAL; // Dirección no válida
+            }
         }
-
         // Traduce el código de retorno del SDK a tus flags
         //return (code == SPI_CODE_OK) ? SPI_CODE_OK : SPI_FLAG_ERROR;
-
-        spi_state_e state = spi_get_state(&spi_pynq);
-        if (state != SPI_STATE_DONE) {
-            printf("Problema en la SPI: %d\n", state);
-            //return;
-        } else {
-            printf("SPI successfully executed a transaction\n");
-        }
 
         return code;
     

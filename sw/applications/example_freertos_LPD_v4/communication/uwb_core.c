@@ -122,9 +122,10 @@ void gpio_monitor_task(void* arg) {
                     while ((level == 0) && (interrupt_processing_enabled)){// && (acquisition_active || conf_uwb_active)) {
                         // ==============================================================
                         // RECIBIR RESPUESTA DEL UWB
-                        //printf("\nRecibiendo respuesta del UWB desde ISR...");
+                        printf("\nRecibiendo respuesta del UWB desde ISR...");
                         // ==============================================================
                         gpio_read(GPIO_INT_IO, &level);
+                        gpio_write(GPIO_PRUEBA, 1);
                         if (!receive_uci_message(recv_buffer,sizeof(recv_buffer), &len)) {
                             gpio_write(GPIO_CS, true);  // Asegurar que se libera CS
                             break;
@@ -213,19 +214,26 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
 
     // Leer cabecera de 4 bytes
     // printf("\tLeyendo cabecera y payload length...\n");
-    uint8_t header[4];
-    if (spi_transfer(NULL, header, 4, SPI_DIR_RX_ONLY) != SPI_CODE_OK) {
+    uint8_t header[4] = {0x00, 0x00, 0x00, 0x00};
+    
+    uint8_t tx_empty[4] = {0x00, 0x00, 0x00, 0x00};
+    spi_codes_e code_test;
+    code_test = spi_transfer(tx_empty, header, 4, SPI_DIR_RX_ONLY);
+    /*if (code_test != SPI_CODE_OK) {
         gpio_write(GPIO_CS, true);
+        printf("Error leyendo cabecera SPI Code= 0x%02X\n", code_test);
         return false;
-    }
+    }*/
+
+
 
     //print_gpio_states();
-    // // Imprimir la cabecera recibida
-    // printf("\tCabecera recibida: ");
-    // for (size_t i = 0; i < 4; i++) {
-    //     printf("\033[0;31m%02X \033[0m", header[i]);
-    // }
-    // printf("\n");
+    // Imprimir la cabecera recibida
+    printf("\tCabecera recibida: ");
+    for (size_t i = 0; i < 4; i++) {
+        printf("%02X", header[i]);
+    }
+    printf("\n");
 
     // Analizar cabecera
     UCIPacketHeader hdr;

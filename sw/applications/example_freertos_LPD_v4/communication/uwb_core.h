@@ -12,8 +12,8 @@
 
 extern bool success;
 
-#define RDY_TIMEOUT_MS 1000 // 1 segundo máximo
-#define INT_TIMEOUT_MS 1000 // 1 segundo máximo
+#define RDY_TIMEOUT_MS 2000 // 1 segundo máximo
+#define INT_TIMEOUT_MS 2000 // 1 segundo máximo
 
 
 bool validate_crc(const uint8_t *buffer, size_t length);

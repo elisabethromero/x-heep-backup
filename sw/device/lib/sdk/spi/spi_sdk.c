@@ -38,6 +38,8 @@
 #include "soc_ctrl_structs.h"
 #include "bitfield.h"
 #include "csr.h"
+#include "gpio.h"
+#include "Config.h"
 
 /****************************************************************************/
 /**                                                                        **/
@@ -357,19 +359,6 @@ static volatile spi_peripheral_t peripherals[] = {
         .txcnt     = 0,
         .rxcnt     = 0,
         .callbacks = {0}
-    },
-    (spi_peripheral_t) {
-        .instance  = spi_host2,
-        .txwm      = TXWM_DEFAULT,
-        .rxwm      = RXWM_DEFAULT,
-        .last_id   = 0,
-        .timeout   = SPI_TIMEOUT_DEFAULT,
-        .state     = SPI_STATE_NONE,
-        .txn       = {0},
-        .scnt      = 0,
-        .txcnt     = 0,
-        .rxcnt     = 0,
-        .callbacks = {0}
     }
 };
 
@@ -384,6 +373,7 @@ spi_t spi_init(spi_idx_e idx, spi_slave_t slave)
     // Make sure all parameters of the slave are valid.
     spi_codes_e error = spi_validate_slave(slave);
     // Check that the SPI peripheral identifier is valid.
+    printf("idx: %d\r\n", idx);   
     if (SPI_IDX_INVALID(idx))       error |= SPI_CODE_IDX_INVAL;
     // Since watermark is set here, not a good idea to allow for initialization.
     // Anyways not very elegant to initialize while being busy... right?
@@ -536,11 +526,15 @@ spi_state_e spi_get_state(spi_t* spi)
 
 spi_codes_e spi_transmit(spi_t* spi, const uint32_t* src_buffer, uint32_t len) 
 {
+    //printf("0\r\n");
     // Make validity checks and set the slave at hardware level
     spi_codes_e error = spi_prepare_transfer(spi);
+     printf("1\r\n");
     // Check that length doesn't exceed maximum and is not 0
     if (SPI_INVALID_LEN(len)) error |= SPI_CODE_TXN_LEN_INVAL;
     if (error) return error;
+
+    // printf("2\r\n");
 
     // Create command segment for TX transaction
     spi_segment_t     seg = SPI_SEG_TX(len);
@@ -550,9 +544,11 @@ spi_codes_e spi_transmit(spi_t* spi, const uint32_t* src_buffer, uint32_t len)
     // Launch the transaction. All data has been verified, launch doesn't check 
     // anything. No callbacks since function is blocking.
     spi_launch(&peripherals[spi->idx], spi, txn, NULL_CALLBACKS);
+    printf("3\r\n");
 
     spi_wait_transaction_done(&peripherals[spi->idx]);
     // while (SPI_BUSY(peripherals[spi->idx])) wait_for_interrupt();
+    printf("4\r\n");
 
     return SPI_CODE_OK;
 }
@@ -600,6 +596,8 @@ spi_codes_e spi_transceive(spi_t* spi, const uint32_t* src_buffer,
 
     spi_wait_transaction_done(&peripherals[spi->idx]);
     // while (SPI_BUSY(peripherals[spi->idx])) wait_for_interrupt();
+
+    gpio_write(GPIO_PRUEBA, 0);
 
     return SPI_CODE_OK;
 }
@@ -728,7 +726,7 @@ spi_codes_e spi_execute_nb(spi_t* spi, const spi_segment_t* segments,
 spi_codes_e spi_check_valid(spi_t* spi) 
 {
     // Is SPI peripheral identifier valid?
-    if (SPI_IDX_INVALID(spi->idx)) return SPI_CODE_IDX_INVAL;
+    //if (SPI_IDX_INVALID(spi->idx)) return SPI_CODE_IDX_INVAL;
     // Has the spi been initialized (i.e. base validity checks made)?
     if (!spi->init)                return SPI_CODE_NOT_INIT;
     return SPI_CODE_OK;
@@ -894,6 +892,12 @@ void spi_launch(spi_peripheral_t* peri, spi_t* spi, spi_transaction_t txn,
     // Indicate the callbacks that should be called
     peri->callbacks = callbacks;
 
+    printf("RX buffer at the begining of launch:");
+    int32_t*  rxbuf = (int32_t*) txn.rxbuffer;
+    for (int i = 0; i < txn.rxlen; i++) {
+        printf(" 0x%02X", rxbuf[i]);
+    }
+    printf("\r\n");
     // Fill the TX fifo before starting so there is data once command launched
     spi_fill_tx(peri);
 
@@ -905,6 +909,11 @@ void spi_launch(spi_peripheral_t* peri, spi_t* spi, spi_transaction_t txn,
     spi_wait_for_ready(peri->instance);
     // Write command segment. This immediately triggers the SPI peripheral into action.
     spi_issue_next_seg(peri);
+    printf("RX buffer at the end launch:");
+    for (int i = 0; i < txn.rxlen; i++) {
+        printf(" 0x%02X", rxbuf[i]);
+    }
+    printf("\r\n");
 }
 
 void spi_wait_transaction_done(spi_peripheral_t* peri) 
@@ -920,12 +929,15 @@ void spi_wait_transaction_done(spi_peripheral_t* peri)
     CSR_READ(CSR_REG_MCYCLE,  &start[0]);
     CSR_READ(CSR_REG_MCYCLEH, &start[1]);
 
+    // printf("tick counter created\r\n");
+
     // Wait until transaction has finished or timed-out
     do
     {
         // Read tick counter value
         CSR_READ(CSR_REG_MCYCLE,  &end[0]);
         CSR_READ(CSR_REG_MCYCLEH, &end[1]);
+        // printf("SPI state en bucle spi wait: 0x%02X\r\n", peri->state);
         // If ticks elapsed exceed timeout ticks, cancel transaction and return
         if (*((uint64_t*)end) - *((uint64_t*)start) > timeout_ticks)
         {
@@ -935,8 +947,8 @@ void spi_wait_transaction_done(spi_peripheral_t* peri)
             peri->state = SPI_STATE_TIMEOUT;
             break;
         }
-        
     } while (SPI_BUSY((*peri)));
+
 }
 
 void spi_issue_next_seg(spi_peripheral_t* peri) 

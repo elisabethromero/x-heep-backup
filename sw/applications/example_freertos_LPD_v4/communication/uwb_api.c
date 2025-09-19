@@ -52,6 +52,8 @@ void task_uwb(){
 bool initializeDevice() {
 
     hard_reset(); // Reiniciar el UWB para asegurarse de que comienza desde un estado limpio
+
+    print_gpio_states();
     
     if (!wait_for_gpio_low(GPIO_INT_IO, RDY_TIMEOUT_MS)) return false;
 

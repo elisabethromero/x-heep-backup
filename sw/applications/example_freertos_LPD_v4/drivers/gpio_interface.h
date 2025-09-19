@@ -16,6 +16,5 @@ void gpio_init();
 
 void gpio_isr_handler_int();
 void gpio_isr_handler_rdy();
-void gpio_isr_handler_rst();
 
 #endif // GPIO_H
