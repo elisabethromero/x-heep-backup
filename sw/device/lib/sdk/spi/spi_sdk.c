@@ -546,7 +546,7 @@ spi_codes_e spi_transmit(spi_t* spi, const uint32_t* src_buffer, uint32_t len)
     spi_launch(&peripherals[spi->idx], spi, txn, NULL_CALLBACKS);
     printf("3\r\n");
 
-    //spi_wait_transaction_done(&peripherals[spi->idx]);
+    spi_wait_transaction_done(&peripherals[spi->idx]);
     // while (SPI_BUSY(peripherals[spi->idx])) wait_for_interrupt();
     printf("4\r\n");
 
@@ -596,9 +596,8 @@ spi_codes_e spi_transceive(spi_t* spi, const uint32_t* src_buffer,
     // Launch the transaction. All data has been verified, launch doesn't check 
     // anything. No callbacks since function is blocking.
     spi_launch(&peripherals[spi->idx], spi, txn, NULL_CALLBACKS);
-    //printf("Waiting for transaction\r\n");
-    gpio_write(GPIO_PRUEBA, 1);
-    spi_wait_transaction_done(&peripherals[spi->idx]);
+    printf("Waiting for transaction\r\n");
+    //spi_wait_transaction_done(&peripherals[spi->idx]);
     // while (SPI_BUSY(peripherals[spi->idx])) wait_for_interrupt();
 
     return SPI_CODE_OK;
@@ -624,6 +623,7 @@ spi_codes_e spi_execute(spi_t* spi, const spi_segment_t* segments,
     // Launch the transaction. All data has been verified, launch doesn't check 
     // anything. No callbacks since function is blocking.
     spi_launch(&peripherals[spi->idx], spi, txn, NULL_CALLBACKS);
+
     spi_wait_transaction_done(&peripherals[spi->idx]);
     // while (SPI_BUSY(peripherals[spi->idx])) wait_for_interrupt();
 
@@ -950,29 +950,20 @@ void spi_launch(spi_peripheral_t* peri, spi_t* spi, spi_transaction_t txn,
 
 void spi_wait_transaction_done(spi_peripheral_t* peri) 
 {
-    uint64_t timeout_ticks = ((uint64_t) peri->timeout) * (SYS_FREQ / 1000);
-    uint32_t start[2];
-    uint32_t end[2];
-    CSR_CLEAR_BITS(CSR_REG_MCOUNTINHIBIT, 0x1); // Enable cycle counter
-    CSR_READ(CSR_REG_MCYCLE,  &start[0]);
-    CSR_READ(CSR_REG_MCYCLEH, &start[1]);
+        for(volatile int tickcount = 0; tickcount < 10000; tickcount++); // New timeout delay
 
-    do{
-
-        CSR_READ(CSR_REG_MCYCLE,  &end[0]);
-        CSR_READ(CSR_REG_MCYCLEH, &end[1]);
-        printf("SPI state: 0x%02X\r\n", peri->state);
-        if(*((uint64_t*)end) - *((uint64_t*)start) > timeout_ticks){
-            // Wait for interrupt (either event or error)
+        // printf("SPI state en bucle spi wait: 0x%02X\r\n", peri->state);
+        // If ticks elapsed exceed timeout ticks, cancel transaction and return
+        if (SPI_BUSY((*peri)))
+        {
             printf("SPI timeout: 0x%02X\r\n", peri->state);
             // Fully reset spi peripheral to cancel transaction, empty fifos, etc.
             spi_reset_peri(peri);
             // Indicate to user the transaction has timed-out
             peri->state = SPI_STATE_TIMEOUT;
-            break;
-        }
-    } while SPI_BUSY((*peri));
-    gpio_write(GPIO_PRUEBA, 0);
+            return;
+        };
+        printf("Transaction done\r\n");
 }
 
 void spi_issue_next_seg(spi_peripheral_t* peri) 
