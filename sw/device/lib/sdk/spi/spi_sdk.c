@@ -560,11 +560,14 @@ spi_codes_e spi_receive(spi_t* spi, uint32_t* dest_buffer, uint32_t len)
     // Check that length doesn't exceed maximum and is not 0
     if (SPI_INVALID_LEN(len)) error |= SPI_CODE_TXN_LEN_INVAL;
     if (error) return error;
-
+    uint32_t* tx_buffer;
+    for (int i = 0; i < len; i++) {
+        tx_buffer[i] = 0;
+    }
     // Create command segment for RX transaction
-    spi_segment_t     seg = SPI_SEG_RX(len);
+    spi_segment_t     seg = SPI_SEG_BIDIR(len);
     // Create the transaction with the created segment
-    spi_transaction_t txn = SPI_TXN_RX(&seg, dest_buffer, LEN_WORDS(len));
+    spi_transaction_t txn = SPI_TXN_BIDIR(&seg, tx_buffer, dest_buffer, len);
 
     // Launch the transaction. All data has been verified, launch doesn't check 
     // anything. No callbacks since function is blocking.
@@ -593,11 +596,10 @@ spi_codes_e spi_transceive(spi_t* spi, const uint32_t* src_buffer,
     // Launch the transaction. All data has been verified, launch doesn't check 
     // anything. No callbacks since function is blocking.
     spi_launch(&peripherals[spi->idx], spi, txn, NULL_CALLBACKS);
-
+    //printf("Waiting for transaction\r\n");
+    gpio_write(GPIO_PRUEBA, 1);
     spi_wait_transaction_done(&peripherals[spi->idx]);
     // while (SPI_BUSY(peripherals[spi->idx])) wait_for_interrupt();
-
-    gpio_write(GPIO_PRUEBA, 0);
 
     return SPI_CODE_OK;
 }
@@ -622,7 +624,6 @@ spi_codes_e spi_execute(spi_t* spi, const spi_segment_t* segments,
     // Launch the transaction. All data has been verified, launch doesn't check 
     // anything. No callbacks since function is blocking.
     spi_launch(&peripherals[spi->idx], spi, txn, NULL_CALLBACKS);
-
     spi_wait_transaction_done(&peripherals[spi->idx]);
     // while (SPI_BUSY(peripherals[spi->idx])) wait_for_interrupt();
 
@@ -850,6 +851,21 @@ bool spi_validate_segments(const spi_segment_t* segments, uint32_t segments_len,
 
 bool spi_fill_tx(spi_peripheral_t* peri) 
 {
+    // Print RX buffer before reading
+    printf("[SPI_FILL_TX]: %d \r\n", peri->txn.txlen);
+    /*if (peri->txn.txbuffer != NULL) {
+        for (int i = 0; i < peri->txn.txlen; i++) {
+            uint32_t word = peri->txn.txbuffer[i];
+            // Imprime cada byte del word
+            printf("%02X %02X %02X %02X ", 
+                (word >> 0) & 0xFF, 
+                (word >> 8) & 0xFF, 
+                (word >> 16) & 0xFF, 
+                (word >> 24) & 0xFF);
+        }
+    }*/
+
+
     // If we have a TX buffer and didn't exceed the count then fill the TX FIFO
     if (peri->txn.txbuffer != NULL && peri->txcnt < peri->txn.txlen) {
         // While there is still data to be fed and there wasn't an error from HAL
@@ -858,7 +874,8 @@ bool spi_fill_tx(spi_peripheral_t* peri)
         while (
             peri->txcnt < peri->txn.txlen 
             && !spi_write_word(peri->instance, peri->txn.txbuffer[peri->txcnt])
-        ) peri->txcnt++; // Keep track of counter
+        ) peri->txcnt++; // Keep track of counteR
+
         return true;
     }
     return false;
@@ -866,6 +883,20 @@ bool spi_fill_tx(spi_peripheral_t* peri)
 
 bool spi_empty_rx(spi_peripheral_t* peri) 
 {
+    // Print RX buffer before reading
+    printf("RX buffer at the beginning:");
+    if (peri->txn.rxbuffer != NULL) {
+        for (int i = 0; i < peri->txn.rxlen; i++) {
+            uint32_t word = peri->txn.rxbuffer[i];
+            // Imprime cada byte del word
+            printf("%02X %02X %02X %02X ", 
+                (word >> 0) & 0xFF, 
+                (word >> 8) & 0xFF, 
+                (word >> 16) & 0xFF, 
+                (word >> 24) & 0xFF);
+        }
+    }
+    printf("\r\n");
     // If we have a RX buffer and didn't exceed the count then read from RX FIFO
     if (peri->txn.rxbuffer != NULL && peri->rxcnt < peri->txn.rxlen) {
         // While there is still data to be read and there wasn't an error from HAL
@@ -875,6 +906,18 @@ bool spi_empty_rx(spi_peripheral_t* peri)
             peri->rxcnt < peri->txn.rxlen 
             && !spi_read_word(peri->instance, &peri->txn.rxbuffer[peri->rxcnt])
         ) peri->rxcnt++; // Keep track of counter
+
+        printf("RX buffer after writting:");
+        for (int i = 0; i < peri->txn.rxlen; i++) {
+            uint32_t word = peri->txn.rxbuffer[i];
+            // Imprime cada byte del word
+            printf("%02X %02X %02X %02X ", 
+                (word >> 0) & 0xFF, 
+                (word >> 8) & 0xFF, 
+                (word >> 16) & 0xFF, 
+                (word >> 24) & 0xFF);
+        }
+        printf("\r\n");
         return true;
     }
     return false;
@@ -892,12 +935,6 @@ void spi_launch(spi_peripheral_t* peri, spi_t* spi, spi_transaction_t txn,
     // Indicate the callbacks that should be called
     peri->callbacks = callbacks;
 
-    printf("RX buffer at the begining of launch:");
-    int32_t*  rxbuf = (int32_t*) txn.rxbuffer;
-    for (int i = 0; i < txn.rxlen; i++) {
-        printf(" 0x%02X", rxbuf[i]);
-    }
-    printf("\r\n");
     // Fill the TX fifo before starting so there is data once command launched
     spi_fill_tx(peri);
 
@@ -909,46 +946,33 @@ void spi_launch(spi_peripheral_t* peri, spi_t* spi, spi_transaction_t txn,
     spi_wait_for_ready(peri->instance);
     // Write command segment. This immediately triggers the SPI peripheral into action.
     spi_issue_next_seg(peri);
-    printf("RX buffer at the end launch:");
-    for (int i = 0; i < txn.rxlen; i++) {
-        printf(" 0x%02X", rxbuf[i]);
-    }
-    printf("\r\n");
 }
 
 void spi_wait_transaction_done(spi_peripheral_t* peri) 
 {
-    // Convert ms timeout to clock ticks
     uint64_t timeout_ticks = ((uint64_t) peri->timeout) * (SYS_FREQ / 1000);
     uint32_t start[2];
     uint32_t end[2];
-
-    // Enable tick counter
-    CSR_CLEAR_BITS(CSR_REG_MCOUNTINHIBIT, 0x1);
-    // Record start tick counter value
+    CSR_CLEAR_BITS(CSR_REG_MCOUNTINHIBIT, 0x1); // Enable cycle counter
     CSR_READ(CSR_REG_MCYCLE,  &start[0]);
     CSR_READ(CSR_REG_MCYCLEH, &start[1]);
 
-    // printf("tick counter created\r\n");
+    do{
 
-    // Wait until transaction has finished or timed-out
-    do
-    {
-        // Read tick counter value
         CSR_READ(CSR_REG_MCYCLE,  &end[0]);
         CSR_READ(CSR_REG_MCYCLEH, &end[1]);
-        // printf("SPI state en bucle spi wait: 0x%02X\r\n", peri->state);
-        // If ticks elapsed exceed timeout ticks, cancel transaction and return
-        if (*((uint64_t*)end) - *((uint64_t*)start) > timeout_ticks)
-        {
+        printf("SPI state: 0x%02X\r\n", peri->state);
+        if(*((uint64_t*)end) - *((uint64_t*)start) > timeout_ticks){
+            // Wait for interrupt (either event or error)
+            printf("SPI timeout: 0x%02X\r\n", peri->state);
             // Fully reset spi peripheral to cancel transaction, empty fifos, etc.
             spi_reset_peri(peri);
             // Indicate to user the transaction has timed-out
             peri->state = SPI_STATE_TIMEOUT;
             break;
         }
-    } while (SPI_BUSY((*peri)));
-
+    } while SPI_BUSY((*peri));
+    gpio_write(GPIO_PRUEBA, 0);
 }
 
 void spi_issue_next_seg(spi_peripheral_t* peri) 
@@ -1020,6 +1044,7 @@ void spi_event_handler(spi_peripheral_t* peri, spi_event_e events)
             spi_set_events_enabled(peri->instance, SPI_EVENT_ALL, false);
             spi_enable_evt_intr   (peri->instance, false);
             // Read the last data from the RX fifo
+            printf("[SPI EVENT] Reading RX\r\n");
             spi_empty_rx(peri);
             // Set the state to Transaction is done (meaning successful)
             peri->state = SPI_STATE_DONE;
@@ -1058,6 +1083,7 @@ void spi_event_handler(spi_peripheral_t* peri, spi_event_e events)
 
 void spi_error_handler(spi_peripheral_t* peri, spi_error_e error) 
 {
+    printf("[SPI ERROR] Error: 0x%02X\r\n", error);
     // Disable event interrupts
     spi_set_events_enabled(peri->instance, SPI_EVENT_ALL, false);
     spi_enable_evt_intr   (peri->instance, false);

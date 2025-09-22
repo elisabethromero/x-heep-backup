@@ -262,39 +262,10 @@ void vSpiTask(void *pvParameter)
         }
 
         /****************************************************************************//*
-        * TRANSMIT SPI DATA
-        ******************************************************************************/
-        /*if (riscom_platform_spi_transmit(tx_buf, sizeof(tx_buf))) {
-            printf("Código enviado por maestro SPI: ");
-            for (int i = 0; i < sizeof(tx_buf); i++) {
-                printf("%02X ", tx_buf[i]);
-            }
-            printf("\n");
-        } else {
-            printf("Error de transmisión.\n");
-        }*/
-
-        /****************************************************************************//*
-        * RECEIVE SPI DATA
-        ******************************************************************************/
-    /*
-        printf("Esperando datos desde el esclavo SPI...\n");
-
-        if (riscom_platform_spi_receive(rx_buf, RX_LEN)) {
-            printf("Datos recibidos del esclavo SPI: ");
-            for (int i = 0; i < RX_LEN; i++) {
-                printf("%02X ", rx_buf[i]);
-            }
-            printf("\n");
-        } else {
-            printf("Error de recepción.\n");
-        }
-    */
-        /****************************************************************************//*
         * TRANSCEIVE SPI DATA
         ******************************************************************************/
     for (;;){
-        printf("Inside the task\r\n");
+        printf("[SPI TASK] Initialization done\r\n");
         if (riscom_platform_spi_transceive(tx_buf, rx_buf, 16)) {
             printf("Datos recibidos del esclavo SPI: ");
             for (int i = 0; i < RX_LEN; ++i) {
@@ -320,7 +291,7 @@ void main()
     
     printf("FreeRTOS version: %s\n", tskKERNEL_VERSION_NUMBER);
 
-    xTaskCreate(vSpiTask, "SPI Transfer Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
+    xTaskCreate(vSpiTask, "SPI Transfer Task", 8192, NULL, tskIDLE_PRIORITY + 1, NULL);
 
     vTaskStartScheduler();
 

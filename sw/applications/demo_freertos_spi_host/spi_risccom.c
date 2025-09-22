@@ -16,7 +16,7 @@
  * Constants and Macros
  ******************************************************************************/
 
-#define RISCOM_PLATFORM_SPI_DEBUG
+//#define RISCOM_PLATFORM_SPI_DEBUG
 
 // ACTIVAR DEBUG TEMPORAL PARA DIAGNOSTICAR
 #define RISCOM_PLATFORM_SPI_DEBUG
@@ -27,6 +27,7 @@
 
 // CS MANUAL usando GPIO[0] - igual que main.c
 #define CS_GPIO 6 //Antes 0
+#define GPIO_PRUEBA 3 // Pin de prueba
 
 #define FIC_SPI_HOST_MEIE  20               // SPI Host 1 fast interrupt bit enable
 #define CSR_INTR_EN        0x08             // CPU Global interrupt enable
@@ -44,6 +45,12 @@ static void setup_manual_cs(void) {
     
     gpio_result_t result = gpio_config(cs_config);
     gpio_write(CS_GPIO, true);  // CS idle high
+
+    gpio_cfg_t prueba_config = {0};
+    prueba_config.pin = GPIO_PRUEBA;
+    prueba_config.mode = GpioModeOutPushPull;
+    
+    result = gpio_config(prueba_config);
 }
 
 static void cs_low(void) {
@@ -99,19 +106,21 @@ bool riscom_platform_spi_transmit(uint8_t * data, uint32_t length)
 #endif //RISCOM_PLATFORM_SPI_DEBUG
 
     // Activar CS manualmente antes de transmitir
+    printf("After task delay\r\n");
     cs_low();
     //for (volatile int i = 0; i < 50000; i++);  // Delay para CS estable
     vTaskDelay(pdMS_TO_TICKS(500));
-    printf("After task delay\r\n");
+    
 
-    spi_ret = spi_transmit(&riscom_platform_spi_inst, data, length);
+    spi_ret = spi_transmit(&riscom_platform_spi_inst, data, length);                                                      
 
-    printf("After spi transmit\r\n");
+    
     
     // Desactivar CS manualmente después de transmitir
     //for (volatile int i = 0; i < 50000; i++);  // Delay antes de CS high
     vTaskDelay(pdMS_TO_TICKS(100));
     cs_high();
+    printf("After spi transmit\r\n");
 
     if (spi_ret != SPI_CODE_OK)
     {
@@ -161,49 +170,29 @@ bool riscom_platform_spi_receive(uint8_t * data, uint32_t length)
 
 bool riscom_platform_spi_transceive(const uint8_t *tx_data, uint8_t *rx_data, uint32_t length)
 {
-    if (length == 0 || length % 4 != 0) {
-        // Longitud inválida para palabras de 32 bits
-        return false;
-    }
+    spi_codes_e spi_ret;
 
-#ifdef RISCOM_PLATFORM_SPI_DEBUG
+    cs_low();
+    for (volatile int i = 0; i < 50000; i++);  // Delay para CS estable
+
+    spi_ret = spi_transceive(&riscom_platform_spi_inst, tx_data,rx_data, length);
+
+    cs_high();
+
+
     printf("SPI TRANSCEIVE MANUAL (%u bytes)\r\n", (unsigned int)length);
     printf("SPI TX: ");
     for (size_t i = 0; i < length; i++) printf("%02X ", tx_data[i]);
     printf("\r\n");
-#endif
 
-    //printf("=== TRANSACCIÓN SPI MANUAL ===\r\n");
     
-    // PASO 1: Enviar datos con CS manual
-    printf("1. Enviando datos...\r\n");
-    if (!riscom_platform_spi_transmit((uint8_t*)tx_data, length)) {
-        printf("ERROR: Falló transmisión\r\n");
-        return false;
-    }
-
-    printf("Datos transmitidos\r\n");
-    
-    // PASO 2: Delay largo para que Arduino procese
-    //printf("2. Esperando procesamiento Arduino...\r\n");
-    //for (volatile int i = 0; i < 500000; i++);  // Delay muy largo
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    // PASO 3: Recibir respuesta con CS manual  
-    printf("3. Recibiendo respuesta...\r\n");
-    if (!riscom_platform_spi_receive(rx_data, length)) {
-        printf("ERROR: Falló recepción\r\n");
-        return false;
-    }
-
-#ifdef RISCOM_PLATFORM_SPI_DEBUG
     printf("SPI RX: ");
     for (size_t i = 0; i < length; i++) printf("%02X ", rx_data[i]);
     printf("\r\n");
-#endif
 
     printf("=== TRANSACCIÓN COMPLETA ===\r\n");
     return true;
+
 }
 
 /******************************** End of file *********************************/
