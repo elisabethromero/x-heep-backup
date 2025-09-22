@@ -546,7 +546,7 @@ spi_codes_e spi_transmit(spi_t* spi, const uint32_t* src_buffer, uint32_t len)
     spi_launch(&peripherals[spi->idx], spi, txn, NULL_CALLBACKS);
     printf("3\r\n");
 
-    spi_wait_transaction_done(&peripherals[spi->idx]);
+    //spi_wait_transaction_done(&peripherals[spi->idx]);
     // while (SPI_BUSY(peripherals[spi->idx])) wait_for_interrupt();
     printf("4\r\n");
 
