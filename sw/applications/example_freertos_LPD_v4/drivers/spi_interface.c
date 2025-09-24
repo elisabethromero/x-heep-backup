@@ -187,37 +187,40 @@ spi_codes_e spi_transfer(uint8_t* sendbuf, uint8_t* recvbuf, size_t len, spi_dir
 
         spi_codes_e code;
 
-        
+        uint8_t dummy_tx[len]; // Buffer de transmisión vacío
+        for (int i = 0; i < len; i++) {
+            dummy_tx[i] = 0x00; // Rellenar con ceros
+        }
+
         switch (direction) {
             case SPI_DIR_TX_ONLY:
                 if (riscom_platform_spi_transmit(sendbuf, (uint32_t)len)) {
-                    printf("Código enviado por maestro SPI: ");
+                    /*printf("Código enviado por maestro SPI: ");
                     for (int i = 0; i < len; i++) {
                         printf("%02X ", sendbuf[i]);
                     }
-                    printf("\n");
-                    code == SPI_CODE_OK;
+                    printf("\n");*/
+                    code = SPI_CODE_OK;
                 } else {
                     printf("Error de transmisión.\n");
                 }
                 
-            break;
+                break;
 
             case SPI_DIR_RX_ONLY:
-                
-                if (riscom_platform_spi_receive(recvbuf, (uint32_t)len)) {
-                    printf("Datos recibidos del esclavo SPI: ");
+                if (riscom_platform_spi_transceive(dummy_tx, recvbuf, (uint32_t)len)) {
+                    /*printf("Datos recibidos del esclavo SPI: ");
                     for (int i = 0; i < len; i++) {
                         printf("%02X ", recvbuf[i]);
                     }
-                    printf("\n");
-                    code == SPI_CODE_OK;
+                    printf("\n");*/
+                    code = SPI_CODE_OK;
                 } else {
                     printf("Error de recepción.\n");
                 }
-            break;
+                break;
 
-            case SPI_DIR_BIDIR:{
+            case SPI_DIR_BIDIR:
                 if (riscom_platform_spi_transceive(sendbuf, recvbuf, 16)) {
                     printf("Datos recibidos del esclavo SPI: ");
                     for (int i = 0; i < len; ++i) {
@@ -229,18 +232,15 @@ spi_codes_e spi_transfer(uint8_t* sendbuf, uint8_t* recvbuf, size_t len, spi_dir
                         printf("%02X ", sendbuf[i]);
                     }
                     printf("\n");
-                    code == SPI_CODE_OK;
+                    code = SPI_CODE_OK;
                 } else {
                     printf("Fallo en la transacción.\n");
                 }
                 break;
 
             default:
-                return SPI_CODE_IDX_INVAL; // Dirección no válida
-            }
+                code = SPI_CODE_TIMEOUT_INVAL; // Dirección no válida
         }
-        // Traduce el código de retorno del SDK a tus flags
-        //return (code == SPI_CODE_OK) ? SPI_CODE_OK : SPI_FLAG_ERROR;
 
         return code;
     

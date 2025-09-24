@@ -24,20 +24,21 @@ void hard_reset(){
     if(interrupt_processing_enabled) {
         printf("\n[HARD RESET] Disabling interrupt processing...\n");
     }
-
+    gpio_write(GPIO_CS, true);
     printf("\n[HARD RESET] Triggering UWB reset...\n");
     vTaskDelay(pdMS_TO_TICKS(10));
     // gpio_write(GPIO_RST_IO, 1);
+    if (!interrupt_processing_enabled) {
+        interrupt_processing_enabled = true;
+        printf("\n[HARD RESET] Interrupt processing is disabled. Enabling it now...\n");
+    }
     printf("\033[0;31m[INTERRUPCIÓN] RST_IO BAJA\033[0m\n");
     gpio_write(GPIO_RST_IO, 0);
-    vTaskDelay(pdMS_TO_TICKS(10));
-    printf("\033[0;31m[INTERRUPCIÓN] RST_IO SUBE\033[0m\n");
+    vTaskDelay(pdMS_TO_TICKS(1));
     gpio_write(GPIO_RST_IO, 1);
+    printf("\033[0;31m[INTERRUPCIÓN] RST_IO SUBE\033[0m\n");
 
-    if (!interrupt_processing_enabled) {
-        printf("\n[HARD RESET] Interrupt processing is disabled. Enabling it now...\n");
-        interrupt_processing_enabled = true;
-    }
+
 }
 
 // FUNCIÓN PARA ENVIAR Y RECIBIR UN COMANDO UCI
@@ -62,8 +63,7 @@ bool send_uci_cmd_get_rsp(uint8_t *cmd_buffer, size_t cmd_len) {
     printf("\tNivel del gpio RDY: %d\n", level);
     //print_gpio_states();
     if (!wait_for_gpio_low(GPIO_RDY_IO, RDY_TIMEOUT_MS)) return false;
-    gpio_read(GPIO_RDY_IO, &level);
-    printf("\tNivel del gpio RDY: %d\n", level);
+
     //print_gpio_states();
 
     // ==============================================================
@@ -125,11 +125,10 @@ void gpio_monitor_task(void* arg) {
                         printf("\nRecibiendo respuesta del UWB desde ISR...");
                         // ==============================================================
                         gpio_read(GPIO_INT_IO, &level);
-                        gpio_write(GPIO_PRUEBA, 1);
                         if (!receive_uci_message(recv_buffer,sizeof(recv_buffer), &len)) {
                             gpio_write(GPIO_CS, true);  // Asegurar que se libera CS
                             break;
-                        } 
+                        }
                         vTaskDelay(10 / portTICK_PERIOD_MS);
                     }
                 // print_gpio_states();
@@ -191,7 +190,6 @@ bool transmit_uci_command(uint8_t *cmd_buffer, size_t len) {
         return false;
     } else {
         // Subir CS para terminar la transmisión
-        vTaskDelay(5 / portTICK_PERIOD_MS);
         gpio_write(GPIO_CS, true);
         printf("\tCommand sent successfully.\n");
         print_gpio_states();
@@ -206,25 +204,23 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
 
     printf("\n\t[RECV] Recibiendo respuesta de UWB...\n");
     
+    
     // Bajar CS para iniciar la transmisión
     gpio_write(GPIO_CS, false);
-    vTaskDelay(5 / portTICK_PERIOD_MS);
 
     // =============================================================
 
     // Leer cabecera de 4 bytes
     // printf("\tLeyendo cabecera y payload length...\n");
     uint8_t header[4] = {0x00, 0x00, 0x00, 0x00};
-    
-    uint8_t tx_empty[4] = {0x00, 0x00, 0x00, 0x00};
+
     spi_codes_e code_test;
-    code_test = spi_transfer(tx_empty, header, 4, SPI_DIR_RX_ONLY);
+    code_test = spi_transfer(NULL, header, 4, SPI_DIR_RX_ONLY);
     /*if (code_test != SPI_CODE_OK) {
         gpio_write(GPIO_CS, true);
         printf("Error leyendo cabecera SPI Code= 0x%02X\n", code_test);
         return false;
     }*/
-
 
 
     //print_gpio_states();
@@ -240,7 +236,7 @@ bool receive_uci_message(uint8_t *recv_buffer, size_t max_len, size_t *recv_len)
     UCIPacketStatus status = analyze_uci_header(header, 4, &hdr);
     if (status == UCI_PACKET_INVALID) {
         printf("\tCabecera inválida. Cancelando recepción.\n");
-        gpio_write(GPIO_CS, 1);
+        gpio_write(GPIO_CS, true);
         return false;
     } 
     
@@ -386,7 +382,8 @@ UCIPacketStatus analyze_uci_header(const uint8_t *rx_buffer, size_t len, UCIPack
     
     if(acquisition_active || conf_uwb_active || interrupt_processing_enabled){ 
         printf("\t>> MT=0x%02X, GID=0x%02X, OID=0x%02X\n",out->mt, out->gid, out->oid);
-        printf("\tTamaño total del paquete: %zu bytes\n", out->payload_len + 4 + 2);
+        //printf("\tTamaño total del paquete: %zu bytes\n", out->payload_len + 4 + 2);
+        printf("\tTamaño total del paquete: %u bytes\n", (unsigned int)(out->payload_len + 4 + 2));
         printf("\tHeader: MT=0x%02X, GID=0x%02X, OID=0x%02X, PBF=%u, PayloadLen=%u, Pldext=%u, RFU=%u\n",
             out->mt, out->gid, out->oid, out->pbf, out->payload_len, out->pldext, out->rfu);
 

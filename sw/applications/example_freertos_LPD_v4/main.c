@@ -298,7 +298,7 @@ void system_init(void)
     uint32_t mask_spi_flash = 1 << 21; // fast interrupt - spi flash
     CSR_SET_BITS(CSR_REG_MIE, mask_timer);
     CSR_SET_BITS(CSR_REG_MIE, mask_machine);
-    CSR_SET_BITS(CSR_REG_MIE, mask_spi_flash);
+    CSR_SET_BITS(CSR_REG_MIE, mask_spi_host);
 
     // Enable the external interrupt at fast interrupt controller level
     enable_fast_interrupt(4, true);

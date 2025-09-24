@@ -15,10 +15,10 @@
 //#define RISCOM_PLATFORM_SPI_DEBUG
 
 // ACTIVAR DEBUG TEMPORAL PARA DIAGNOSTICAR
-#define RISCOM_PLATFORM_SPI_DEBUG
+//#define RISCOM_PLATFORM_SPI_DEBUG
 
 #define RISCOM_PLATFORM_SPI         SPI_IDX_HOST
-#define RISCOM_PLATFORM_SPI_SPEED   10000
+#define RISCOM_PLATFORM_SPI_SPEED   500000
 #define RISCOM_PLATFORM_SPI_CS      0
 
 #define FIC_SPI_HOST_MEIE  20               // SPI Host 1 fast interrupt bit enable
@@ -78,15 +78,11 @@ bool riscom_platform_spi_transmit(uint8_t * data, uint32_t length)
     printf("\r\n");
 #endif //RISCOM_PLATFORM_SPI_DEBUG
 
-    // Activar CS manualmente antes de transmitir
-    cs_low();
+
     for (volatile int i = 0; i < 5000; i++);  // Delay para CS estable
 
     spi_ret = spi_transmit(&riscom_platform_spi_inst, data, length);
-    
-    // Desactivar CS manualmente después de transmitir
-   
-    cs_high();
+
 
     if (spi_ret != SPI_CODE_OK)
     {
@@ -125,42 +121,31 @@ bool riscom_platform_spi_receive(uint8_t * data, uint32_t length)
 
 bool riscom_platform_spi_transceive(const uint8_t *tx_data, uint8_t *rx_data, uint32_t length)
 {
-    if (length == 0 || length % 4 != 0) {
-        // Longitud inválida para palabras de 32 bits
-        return false;
-    }
+    spi_codes_e spi_ret;
 
-#ifdef RISCOM_PLATFORM_SPI_DEBUG
+    
+    for (volatile int i = 0; i < 10000; i++);  // Delay para CS estable
+
+    spi_ret = spi_transceive(&riscom_platform_spi_inst, tx_data,rx_data, length);
+
+    //vTaskDelay(pdMS_TO_TICKS(100)); //EN FUCNION DEL LENGTH
+
+   
+
+
     printf("SPI TRANSCEIVE MANUAL (%u bytes)\r\n", (unsigned int)length);
-    printf("SPI TX: ");
+    /*printf("SPI TX: ");
     for (size_t i = 0; i < length; i++) printf("%02X ", tx_data[i]);
     printf("\r\n");
-#endif
 
-    //printf("=== TRANSACCIÓN SPI MANUAL ===\r\n");
     
-    // PASO 1: Enviar datos con CS manual
-    printf("1. Enviando datos...\r\n");
-    if (!riscom_platform_spi_transmit((uint8_t*)tx_data, length)) {
-        printf("ERROR: Falló transmisión\r\n");
-        return false;
-    }
-    
-    // PASO 3: Recibir respuesta con CS manual  
-    printf("3. Recibiendo respuesta...\r\n");
-    if (!riscom_platform_spi_receive(rx_data, length)) {
-        printf("ERROR: Falló recepción\r\n");
-        return false;
-    }
-
-#ifdef RISCOM_PLATFORM_SPI_DEBUG
     printf("SPI RX: ");
     for (size_t i = 0; i < length; i++) printf("%02X ", rx_data[i]);
-    printf("\r\n");
-#endif
+    printf("\r\n");*/
 
-    printf("=== TRANSACCIÓN COMPLETA ===\r\n");
+    //printf("=== TRANSACCIÓN COMPLETA ===\r\n");
     return true;
+
 }
 
 /******************************** End of file *********************************/

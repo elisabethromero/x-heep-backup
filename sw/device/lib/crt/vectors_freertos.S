@@ -21,7 +21,7 @@ vector_table:
 	//  0 : exception Handler and user software interrupt
 	j freertos_risc_v_trap_handler
 	//  1 : supervisor software interrupt
-	j __no_irq_handler
+	j __no_irq_handler //__ignore_irq_handler
 	//  2 : unmapped
 	j __no_irq_handler
 	//  3 : machine software interrupt handler
@@ -59,7 +59,7 @@ vector_table:
 	// 19 : fast interrupt - dma
 	j freertos_risc_v_trap_handler
 	// 20 : fast interrupt - spi
-	j freertos_risc_v_trap_handler
+	j handler_irq_fast_spi
 	// 21 : fast interrupt - spi_flash
 	j freertos_risc_v_trap_handler
 	// 22 : fast interrupt - gpio_0
@@ -89,6 +89,12 @@ __no_irq_handler:
 	la a0, no_exception_handler_msg
 	jal ra, puts
 	j __no_irq_handler
+
+__ignore_irq_handler:
+    csrr a0, mepc       // cargar dirección de retorno
+    addi a0, a0, 4       // avanzar a la siguiente instrucción
+    csrw mepc, a0        // escribir dirección actualizada
+    mret                 // volver como si nada
 
 .section .rodata
 illegal_insn_msg:
